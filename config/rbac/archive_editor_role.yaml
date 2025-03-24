@@ -1,16 +1,16 @@
-# permissions for end users to edit objectstores.
+# permissions for end users to edit archives.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: plugin-barman-cloud
+    app.kubernetes.io/name: plugin-pgbackrest
     app.kubernetes.io/managed-by: kustomize
-  name: objectstore-editor-role
+  name: archive-editor-role
 rules:
 - apiGroups:
-  - barmancloud.cnpg.io
+  - pgbackrest.cnpg.opera.com
   resources:
-  - objectstores
+  - archives
   verbs:
   - create
   - delete
@@ -20,8 +20,8 @@ rules:
   - update
   - watch
 - apiGroups:
-  - barmancloud.cnpg.io
+  - pgbackrest.cnpg.opera.com
   resources:
-  - objectstores/status
+  - archives/status
   verbs:
   - get

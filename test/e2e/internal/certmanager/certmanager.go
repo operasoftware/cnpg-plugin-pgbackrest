@@ -25,8 +25,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/types"
 
-	"github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/deployment"
-	"github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/kustomize"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/deployment"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/kustomize"
 )
 
 // InstallOptions contains the options for installing cert-manager.

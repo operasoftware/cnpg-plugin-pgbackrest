@@ -1,3 +1,20 @@
+/*
+Copyright The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package operator
 
 import (
@@ -18,9 +35,9 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	barmancloudv1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/metadata"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/operator/config"
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
 )
 
 // LifecycleImplementation is the implementation of the lifecycle handler
@@ -89,7 +106,7 @@ func (impl LifecycleImplementation) LifecycleHook(
 
 	pluginConfiguration := config.NewFromCluster(&cluster)
 
-	// barman object is required for both the archive and restore process
+	// archive object is required for both the archive and restore process
 	if err := pluginConfiguration.Validate(); err != nil {
 		contextLogger.Info("pluginConfiguration invalid, skipping lifecycle", "error", err)
 		return nil, nil
@@ -107,34 +124,73 @@ func (impl LifecycleImplementation) LifecycleHook(
 	}
 }
 
-func (impl LifecycleImplementation) collectAdditionalEnvs(
+func (impl LifecycleImplementation) calculateSidecarResources(
+	ctx context.Context,
+	archive *pgbackrestv1.Archive,
+) *corev1.ResourceRequirements {
+	contextLogger := log.FromContext(ctx).WithName("lifecycle")
+
+	if archive != nil {
+		contextLogger.Info("Loading sidecar resources definition from the archive object.")
+		return &archive.Spec.InstanceSidecarConfiguration.Resources
+	}
+	contextLogger.Info("Resources definition not found in the archive object.")
+	return nil
+}
+
+func (impl LifecycleImplementation) getArchives(
 	ctx context.Context,
 	namespace string,
 	pluginConfiguration *config.PluginConfiguration,
+) (*pgbackrestv1.Archive, *pgbackrestv1.Archive, error) {
+	var archive pgbackrestv1.Archive
+	var recoveryArchive pgbackrestv1.Archive
+	contextLogger := log.FromContext(ctx).WithName("lifecycle")
+	if len(pluginConfiguration.PgbackrestObjectName) > 0 {
+		if err := impl.Client.Get(ctx, types.NamespacedName{
+			Name:      pluginConfiguration.PgbackrestObjectName,
+			Namespace: namespace,
+		}, &archive); err != nil {
+			contextLogger.Error(err, "failed to retrieve archive", "error", err)
+			return nil, nil, err
+		}
+	}
+	if len(pluginConfiguration.RecoveryPgbackrestObjectName) > 0 {
+		if err := impl.Client.Get(ctx, types.NamespacedName{
+			Name:      pluginConfiguration.RecoveryPgbackrestObjectName,
+			Namespace: namespace,
+		}, &recoveryArchive); err != nil {
+			contextLogger.Error(err, "failed to retrieve recovery archive", "error", err)
+			return nil, nil, err
+		}
+	}
+	return &archive, &recoveryArchive, nil
+}
+
+func (impl LifecycleImplementation) collectAdditionalEnvs(
+	ctx context.Context,
+	archive *pgbackrestv1.Archive,
+	recoveryArchive *pgbackrestv1.Archive,
 ) ([]corev1.EnvVar, error) {
 	var result []corev1.EnvVar
+	contextLogger := log.FromContext(ctx).WithName("lifecycle")
 
-	if len(pluginConfiguration.BarmanObjectName) > 0 {
-		envs, err := impl.collectObjectStoreEnvs(
+	if archive != nil {
+		envs, err := impl.collectArchiveEnvs(
 			ctx,
-			types.NamespacedName{
-				Name:      pluginConfiguration.BarmanObjectName,
-				Namespace: namespace,
-			},
+			archive,
 		)
 		if err != nil {
+			contextLogger.Error(err, "failed to collect env variables from archives", err)
 			return nil, err
 		}
 		result = append(result, envs...)
 	}
 
-	if len(pluginConfiguration.RecoveryBarmanObjectName) > 0 {
-		envs, err := impl.collectObjectStoreEnvs(
+	if recoveryArchive != nil {
+		envs, err := impl.collectArchiveEnvs(
 			ctx,
-			types.NamespacedName{
-				Name:      pluginConfiguration.RecoveryBarmanObjectName,
-				Namespace: namespace,
-			},
+			recoveryArchive,
 		)
 		if err != nil {
 			return nil, err
@@ -145,16 +201,11 @@ func (impl LifecycleImplementation) collectAdditionalEnvs(
 	return result, nil
 }
 
-func (impl LifecycleImplementation) collectObjectStoreEnvs(
+func (impl LifecycleImplementation) collectArchiveEnvs(
 	ctx context.Context,
-	barmanObjectKey types.NamespacedName,
+	archive *pgbackrestv1.Archive,
 ) ([]corev1.EnvVar, error) {
-	var objectStore barmancloudv1.ObjectStore
-	if err := impl.Client.Get(ctx, barmanObjectKey, &objectStore); err != nil {
-		return nil, err
-	}
-
-	return objectStore.Spec.InstanceSidecarConfiguration.Env, nil
+	return archive.Spec.InstanceSidecarConfiguration.Env, nil
 }
 
 func (impl LifecycleImplementation) reconcileJob(
@@ -163,12 +214,17 @@ func (impl LifecycleImplementation) reconcileJob(
 	request *lifecycle.OperatorLifecycleRequest,
 	pluginConfiguration *config.PluginConfiguration,
 ) (*lifecycle.OperatorLifecycleResponse, error) {
-	env, err := impl.collectAdditionalEnvs(ctx, cluster.Namespace, pluginConfiguration)
+	archive, recoveryArchive, err := impl.getArchives(ctx, cluster.Namespace, pluginConfiguration)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
+	env, err := impl.collectAdditionalEnvs(ctx, archive, recoveryArchive)
+	if err != nil {
+		return nil, err
+	}
+	resources := impl.calculateSidecarResources(ctx, recoveryArchive)
 
-	return reconcileJob(ctx, cluster, request, env)
+	return reconcileJob(ctx, cluster, request, env, resources)
 }
 
 func reconcileJob(
@@ -176,6 +232,7 @@ func reconcileJob(
 	cluster *cnpgv1.Cluster,
 	request *lifecycle.OperatorLifecycleRequest,
 	env []corev1.EnvVar,
+	resources *corev1.ResourceRequirements,
 ) (*lifecycle.OperatorLifecycleResponse, error) {
 	contextLogger := log.FromContext(ctx).WithName("lifecycle")
 	if pluginConfig := cluster.GetRecoverySourcePlugin(); pluginConfig == nil || pluginConfig.Name != metadata.PluginName {
@@ -193,7 +250,7 @@ func reconcileJob(
 		return nil, err
 	}
 
-	contextLogger = log.FromContext(ctx).WithName("plugin-barman-cloud-lifecycle").
+	contextLogger = log.FromContext(ctx).WithName("plugin-pgbackrest-lifecycle").
 		WithValues("jobName", job.Name)
 	contextLogger.Debug("starting job reconciliation")
 
@@ -211,7 +268,7 @@ func reconcileJob(
 		corev1.Container{
 			Args: []string{"restore"},
 		},
-		env,
+		env, resources,
 	); err != nil {
 		return nil, fmt.Errorf("while reconciling pod spec for job: %w", err)
 	}
@@ -233,12 +290,17 @@ func (impl LifecycleImplementation) reconcilePod(
 	request *lifecycle.OperatorLifecycleRequest,
 	pluginConfiguration *config.PluginConfiguration,
 ) (*lifecycle.OperatorLifecycleResponse, error) {
-	env, err := impl.collectAdditionalEnvs(ctx, cluster.Namespace, pluginConfiguration)
+	archive, recoveryArchive, err := impl.getArchives(ctx, cluster.Namespace, pluginConfiguration)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
+	env, err := impl.collectAdditionalEnvs(ctx, archive, recoveryArchive)
+	if err != nil {
+		return nil, err
+	}
+	resources := impl.calculateSidecarResources(ctx, archive)
 
-	return reconcilePod(ctx, cluster, request, pluginConfiguration, env)
+	return reconcilePod(ctx, cluster, request, pluginConfiguration, env, resources)
 }
 
 func reconcilePod(
@@ -247,18 +309,19 @@ func reconcilePod(
 	request *lifecycle.OperatorLifecycleRequest,
 	pluginConfiguration *config.PluginConfiguration,
 	env []corev1.EnvVar,
+	resources *corev1.ResourceRequirements,
 ) (*lifecycle.OperatorLifecycleResponse, error) {
 	pod, err := decoder.DecodePodJSON(request.GetObjectDefinition())
 	if err != nil {
 		return nil, err
 	}
 
-	contextLogger := log.FromContext(ctx).WithName("plugin-barman-cloud-lifecycle").
+	contextLogger := log.FromContext(ctx).WithName("plugin-pgbackrest-lifecycle").
 		WithValues("podName", pod.Name)
 
 	mutatedPod := pod.DeepCopy()
 
-	if len(pluginConfiguration.BarmanObjectName) != 0 {
+	if len(pluginConfiguration.PgbackrestObjectName) != 0 {
 		if err := reconcilePodSpec(
 			cluster,
 			&mutatedPod.Spec,
@@ -266,7 +329,7 @@ func reconcilePod(
 			corev1.Container{
 				Args: []string{"instance"},
 			},
-			env,
+			env, resources,
 		); err != nil {
 			return nil, fmt.Errorf("while reconciling pod spec for pod: %w", err)
 		}
@@ -291,6 +354,7 @@ func reconcilePodSpec(
 	mainContainerName string,
 	sidecarConfig corev1.Container,
 	additionalEnvs []corev1.EnvVar,
+	resources *corev1.ResourceRequirements,
 ) error {
 	envs := []corev1.EnvVar{
 		{
@@ -322,7 +386,7 @@ func reconcilePodSpec(
 	}
 
 	// fixed values
-	sidecarConfig.Name = "plugin-barman-cloud"
+	sidecarConfig.Name = "plugin-pgbackrest"
 	sidecarConfig.Image = viper.GetString("sidecar-image")
 	sidecarConfig.ImagePullPolicy = cluster.Spec.ImagePullPolicy
 	sidecarConfig.StartupProbe = baseProbe.DeepCopy()
@@ -358,6 +422,10 @@ func reconcilePodSpec(
 		if !found {
 			sidecarConfig.Env = append(sidecarConfig.Env, env)
 		}
+	}
+
+	if resources != nil {
+		sidecarConfig.Resources = *resources
 	}
 
 	if err := InjectPluginSidecarPodSpec(spec, &sidecarConfig, mainContainerName, true); err != nil {

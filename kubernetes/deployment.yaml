@@ -2,24 +2,24 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: barman-cloud
-  name: barman-cloud
+    app: pgbackrest
+  name: pgbackrest
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: barman-cloud
+      app: pgbackrest
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        app: barman-cloud
+        app: pgbackrest
     spec:
-      serviceAccountName: plugin-barman-cloud
+      serviceAccountName: plugin-pgbackrest
       containers:
-      - image: plugin-barman-cloud:latest
-        name: barman-cloud
+      - image: plugin-pgbackrest:latest
+        name: pgbackrest
         ports:
         - containerPort: 9090
           protocol: TCP
@@ -28,7 +28,7 @@ spec:
           valueFrom:
             secretKeyRef:
               key: SIDECAR_IMAGE
-              name: plugin-barman-cloud
+              name: plugin-pgbackrest
         args:
         - operator
         - --server-cert=/server/tls.crt
@@ -47,11 +47,17 @@ spec:
           name: server
         - mountPath: /client
           name: client
-        resources: {}
+        resources:
+          requests:
+            cpu: 1
+            memory: 1Gi
+          limits:
+            cpu: 1
+            memory: 1Gi
       volumes:
       - name: server
         secret:
-          secretName: barman-cloud-server-tls
+          secretName: pgbackrest-server-tls
       - name: client
         secret:
-          secretName: barman-cloud-client-tls
+          secretName: pgbackrest-client-tls

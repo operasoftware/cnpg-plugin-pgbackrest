@@ -17,7 +17,8 @@ limitations under the License.
 package v1
 
 import (
-	barmanapi "github.com/cloudnative-pg/barman-cloud/pkg/api"
+	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -27,18 +28,22 @@ type InstanceSidecarConfiguration struct {
 	// The environment to be explicitly passed to the sidecar
 	// +optional
 	Env []corev1.EnvVar `json:"env,omitempty"`
+	// TODO: Add resources for the restore job sidecar
+	// Resources allocated for the sidecar
+	// +optional
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
 }
 
-// ObjectStoreSpec defines the desired state of ObjectStore.
-type ObjectStoreSpec struct {
-	Configuration barmanapi.BarmanObjectStoreConfiguration `json:"configuration"`
+// ArchiveSpec defines the desired state of Archive.
+type ArchiveSpec struct {
+	Configuration pgbackrestApi.PgbackrestConfiguration `json:"configuration"`
 
 	// +optional
 	InstanceSidecarConfiguration InstanceSidecarConfiguration `json:"instanceSidecarConfiguration,omitempty"`
 }
 
-// ObjectStoreStatus defines the observed state of ObjectStore.
-type ObjectStoreStatus struct {
+// ArchiveStatus defines the observed state of Archive.
+type ArchiveStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 }
@@ -48,25 +53,25 @@ type ObjectStoreStatus struct {
 // +genclient
 // +kubebuilder:storageversion
 
-// ObjectStore is the Schema for the objectstores API.
-type ObjectStore struct {
+// Archive is the Schema for the archives API.
+type Archive struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec ObjectStoreSpec `json:"spec"`
+	Spec ArchiveSpec `json:"spec"`
 	// +optional
-	Status ObjectStoreStatus `json:"status,omitempty"`
+	Status ArchiveStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// ObjectStoreList contains a list of ObjectStore.
-type ObjectStoreList struct {
+// ArchiveList contains a list of PgbackrestConfig.
+type ArchiveList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ObjectStore `json:"items"`
+	Items           []Archive `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ObjectStore{}, &ObjectStoreList{})
+	SchemeBuilder.Register(&Archive{}, &ArchiveList{})
 }

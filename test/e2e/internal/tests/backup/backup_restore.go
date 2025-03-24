@@ -1,5 +1,6 @@
 /*
-Copyright 2024.
+Copyright 2024, The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,10 +26,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	internalClient "github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/client"
-	internalCluster "github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/cluster"
-	"github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/command"
-	nmsp "github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/namespace"
+	internalClient "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/client"
+	internalCluster "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/cluster"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/command"
+	nmsp "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/namespace"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -55,11 +56,11 @@ var _ = Describe("Backup and restore", func() {
 		) {
 			testResources := factory.createBackupRestoreTestResources(namespace.Name)
 
-			By("starting the ObjectStore deployment")
+			By("starting the object store deployment")
 			Expect(testResources.ObjectStoreResources.Create(ctx, cl)).To(Succeed())
 
-			By("creating the ObjectStore")
-			Expect(cl.Create(ctx, testResources.ObjectStore)).To(Succeed())
+			By("creating the Archive")
+			Expect(cl.Create(ctx, testResources.Archive)).To(Succeed())
 
 			By("Creating a CloudNativePG cluster")
 			src := testResources.SrcCluster
@@ -174,36 +175,6 @@ var _ = Describe("Backup and restore", func() {
 		Entry(
 			"using the plugin for backup and restore on S3",
 			&s3BackupPluginBackupPluginRestore{},
-		),
-		Entry(
-			"using the plugin for backup and in-tree for restore on S3",
-			&s3BackupPluginBackupInTreeRestore{},
-		),
-		Entry(
-			"using in-tree for backup and the plugin for restore on S3",
-			&s3BackupPluginInTreeBackupPluginRestore{},
-		),
-		Entry(
-			"using the plugin for backup and restore on Azure",
-			&azureBackupPluginBackupPluginRestore{},
-		),
-		Entry(
-			"using the plugin for backup and in-tree for restore on Azure",
-			&azureBackupPluginBackupInTreeRestore{},
-		),
-		Entry(
-			"using in-tree for backup and the plugin for restore on Azure",
-			&azureBackupPluginInTreeBackupPluginRestore{},
-		),
-		Entry("using the plugin for backup and restore on GCS",
-			&gcsBackupPluginBackupPluginRestore{},
-		),
-		Entry("using the plugin for backup and in-tree for restore on GCS",
-			&gcsBackupPluginBackupInTreeRestore{},
-		),
-		Entry(
-			"using in-tree for backup and the plugin for restore on GCS",
-			&gcsBackupPluginInTreeBackupPluginRestore{},
 		),
 	)
 })

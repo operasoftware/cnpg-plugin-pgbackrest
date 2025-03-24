@@ -1,3 +1,20 @@
+/*
+Copyright The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package config
 
 import (
@@ -8,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/metadata"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
 )
 
 // ConfigurationError represents a mistake in the plugin configuration
@@ -49,53 +66,55 @@ func (e *ConfigurationError) IsEmpty() bool {
 type PluginConfiguration struct {
 	Cluster *cnpgv1.Cluster
 
-	BarmanObjectName string
-	ServerName       string
+	PgbackrestObjectName string
+	Stanza               string
 
-	RecoveryBarmanObjectName string
-	RecoveryServerName       string
+	RecoveryPgbackrestObjectName string
+	RecoveryStanza               string
 
-	ReplicaSourceBarmanObjectName string
-	ReplicaSourceServerName       string
+	ReplicaSourcePgbackrestObjectName string
+	ReplicaSourceStanza               string
 }
 
-// GetBarmanObjectKey gets the namespaced name of the barman object
-func (config *PluginConfiguration) GetBarmanObjectKey() types.NamespacedName {
+// GetArchiveObjectKey gets the namespaced name of the pgbackrest archive object
+func (config *PluginConfiguration) GetArchiveObjectKey() types.NamespacedName {
 	return types.NamespacedName{
 		Namespace: config.Cluster.Namespace,
-		Name:      config.BarmanObjectName,
+		Name:      config.PgbackrestObjectName,
 	}
 }
 
-// GetRecoveryBarmanObjectKey gets the namespaced name of the recovery barman object
-func (config *PluginConfiguration) GetRecoveryBarmanObjectKey() types.NamespacedName {
+// GetRecoveryArchiveObjectKey gets the namespaced name of the recovery pgbackrest
+// archive object
+func (config *PluginConfiguration) GetRecoveryArchiveObjectKey() types.NamespacedName {
 	return types.NamespacedName{
 		Namespace: config.Cluster.Namespace,
-		Name:      config.RecoveryBarmanObjectName,
+		Name:      config.RecoveryPgbackrestObjectName,
 	}
 }
 
-// GetReplicaSourceBarmanObjectKey gets the namespaced name of the replica source barman object
-func (config *PluginConfiguration) GetReplicaSourceBarmanObjectKey() types.NamespacedName {
+// GetReplicaSourceArchiveObjectKey gets the namespaced name of the replica source
+// pgbackrest archive object
+func (config *PluginConfiguration) GetReplicaSourceArchiveObjectKey() types.NamespacedName {
 	return types.NamespacedName{
 		Namespace: config.Cluster.Namespace,
-		Name:      config.ReplicaSourceBarmanObjectName,
+		Name:      config.ReplicaSourcePgbackrestObjectName,
 	}
 }
 
-// GetReferredBarmanObjectsKey gets the list of barman objects referred by this
-// plugin configuration
-func (config *PluginConfiguration) GetReferredBarmanObjectsKey() []types.NamespacedName {
+// GetReferredArchiveObjectsKey gets the list of pgbackrest archive objects referred by
+// this plugin configuration
+func (config *PluginConfiguration) GetReferredArchiveObjectsKey() []types.NamespacedName {
 	result := make([]types.NamespacedName, 0, 3)
 
-	if len(config.BarmanObjectName) > 0 {
-		result = append(result, config.GetBarmanObjectKey())
+	if len(config.PgbackrestObjectName) > 0 {
+		result = append(result, config.GetArchiveObjectKey())
 	}
-	if len(config.RecoveryBarmanObjectName) > 0 {
-		result = append(result, config.GetRecoveryBarmanObjectKey())
+	if len(config.RecoveryPgbackrestObjectName) > 0 {
+		result = append(result, config.GetRecoveryArchiveObjectKey())
 	}
-	if len(config.ReplicaSourceBarmanObjectName) > 0 {
-		result = append(result, config.GetReplicaSourceBarmanObjectKey())
+	if len(config.ReplicaSourcePgbackrestObjectName) > 0 {
+		result = append(result, config.GetReplicaSourceArchiveObjectKey())
 	}
 
 	return result
@@ -127,46 +146,46 @@ func NewFromCluster(cluster *cnpgv1.Cluster) *PluginConfiguration {
 		metadata.PluginName,
 	)
 
-	serverName := cluster.Name
+	stanza := cluster.Name
 	for _, plugin := range cluster.Spec.Plugins {
 		if plugin.IsEnabled() && plugin.Name == metadata.PluginName {
-			if pluginServerName, ok := plugin.Parameters["serverName"]; ok {
-				serverName = pluginServerName
+			if pluginStanza, ok := plugin.Parameters["stanza"]; ok {
+				stanza = pluginStanza
 			}
 		}
 	}
 
-	recoveryServerName := ""
-	recoveryBarmanObjectName := ""
+	recoveryStanza := ""
+	recoveryPgbackrestObjectName := ""
 	if recoveryParameters := getRecoveryParameters(cluster); recoveryParameters != nil {
-		recoveryBarmanObjectName = recoveryParameters["barmanObjectName"]
-		recoveryServerName = recoveryParameters["serverName"]
-		if len(recoveryServerName) == 0 {
-			recoveryServerName = cluster.Name
+		recoveryPgbackrestObjectName = recoveryParameters["pgbackrestObjectName"]
+		recoveryStanza = recoveryParameters["stanza"]
+		if len(recoveryStanza) == 0 {
+			recoveryStanza = cluster.Name
 		}
 	}
 
-	replicaSourceServerName := ""
-	replicaSourceBarmanObjectName := ""
+	replicaSourceStanza := ""
+	replicaSourcePgbackrestObjectName := ""
 	if replicaSourceParameters := getReplicaSourceParameters(cluster); replicaSourceParameters != nil {
-		replicaSourceBarmanObjectName = replicaSourceParameters["barmanObjectName"]
-		replicaSourceServerName = replicaSourceParameters["serverName"]
-		if len(replicaSourceServerName) == 0 {
-			replicaSourceServerName = cluster.Name
+		replicaSourcePgbackrestObjectName = replicaSourceParameters["pgbackrestObjectName"]
+		replicaSourceStanza = replicaSourceParameters["stanza"]
+		if len(replicaSourceStanza) == 0 {
+			replicaSourceStanza = cluster.Name
 		}
 	}
 
 	result := &PluginConfiguration{
 		Cluster: cluster,
 		// used for the backup/archive
-		BarmanObjectName: helper.Parameters["barmanObjectName"],
-		ServerName:       serverName,
+		PgbackrestObjectName: helper.Parameters["pgbackrestObjectName"],
+		Stanza:               stanza,
 		// used for restore and wal_restore during backup recovery
-		RecoveryServerName:       recoveryServerName,
-		RecoveryBarmanObjectName: recoveryBarmanObjectName,
+		RecoveryStanza:               recoveryStanza,
+		RecoveryPgbackrestObjectName: recoveryPgbackrestObjectName,
 		// used for wal_restore in the designed primary of a replica cluster
-		ReplicaSourceServerName:       replicaSourceServerName,
-		ReplicaSourceBarmanObjectName: replicaSourceBarmanObjectName,
+		ReplicaSourceStanza:               replicaSourceStanza,
+		ReplicaSourcePgbackrestObjectName: replicaSourcePgbackrestObjectName,
 	}
 
 	return result
@@ -241,12 +260,12 @@ func getReplicaSourcePlugin(cluster *cnpgv1.Cluster) *cnpgv1.PluginConfiguration
 	return recoveryExternalCluster.PluginConfiguration
 }
 
-// Validate checks if the barmanObjectName is set
+// Validate checks if the pgbackrestObjectName is set
 func (config *PluginConfiguration) Validate() error {
 	err := NewConfigurationError()
 
-	if len(config.BarmanObjectName) == 0 && len(config.RecoveryBarmanObjectName) == 0 {
-		return err.WithMessage("no reference to barmanObjectName have been included")
+	if len(config.PgbackrestObjectName) == 0 && len(config.RecoveryPgbackrestObjectName) == 0 {
+		return err.WithMessage("no reference to pgbackrestObjectName have been included")
 	}
 
 	return nil

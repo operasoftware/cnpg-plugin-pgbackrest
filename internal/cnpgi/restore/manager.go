@@ -15,13 +15,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	barmancloudv1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
 )
 
 var scheme = runtime.NewScheme()
 
 func init() {
-	utilruntime.Must(barmancloudv1.AddToScheme(scheme))
+	utilruntime.Must(pgbackrestv1.AddToScheme(scheme))
 	utilruntime.Must(cnpgv1.AddToScheme(scheme))
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 }
@@ -29,7 +29,7 @@ func init() {
 // Start starts the sidecar informers and CNPG-i server
 func Start(ctx context.Context) error {
 	setupLog := log.FromContext(ctx)
-	setupLog.Info("Starting barman cloud instance plugin")
+	setupLog.Info("Starting pgbackrest instance plugin")
 	namespace := viper.GetString("namespace")
 	clusterName := viper.GetString("cluster-name")
 
@@ -51,7 +51,7 @@ func Start(ctx context.Context) error {
 			Cache: &client.CacheOptions{
 				DisableFor: []client.Object{
 					&corev1.Secret{},
-					&barmancloudv1.ObjectStore{},
+					&pgbackrestv1.Archive{},
 				},
 			},
 		},

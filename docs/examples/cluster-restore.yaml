@@ -13,10 +13,10 @@ spec:
   externalClusters:
   - name: source
     plugin:
-      name: barman-cloud.cloudnative-pg.io
+      name: pgbackrest.cnpg.opera.com
       parameters:
-        barmanObjectName: minio-store
-        serverName: cluster-example
+        pgbackrestObjectName: minio-store
+        stanza: cluster-example
 
   storage:
     size: 1Gi

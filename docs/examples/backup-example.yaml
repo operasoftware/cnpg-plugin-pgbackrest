@@ -7,6 +7,11 @@ spec:
 
   cluster:
     name: cluster-example
+  # Currently only primary is supported.
+  target: primary
 
   pluginConfiguration:
-    name: barman-cloud.cloudnative-pg.io
+    name: pgbackrest.cnpg.opera.com
+    parameters:
+      type: full
+

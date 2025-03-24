@@ -4,7 +4,7 @@ import "github.com/cloudnative-pg/cnpg-i/pkg/identity"
 
 // PluginName is the name of the plugin from the instance manager
 // Point-of-view
-const PluginName = "barman-cloud.cloudnative-pg.io"
+const PluginName = "pgbackrest.cnpg.opera.com"
 
 const (
 	// CheckEmptyWalArchiveFile is the name of the file in the PGDATA that,
@@ -16,11 +16,11 @@ const (
 // Data is the metadata of this plugin.
 var Data = identity.GetPluginMetadataResponse{
 	Name:          PluginName,
-	Version:       "0.0.1",
-	DisplayName:   "BarmanCloudInstance",
-	ProjectUrl:    "https://github.com/cloudnative-pg/plugin-barman-cloud",
-	RepositoryUrl: "https://github.com/cloudnative-pg/plugin-barman-cloud",
+	Version:       "0.1.0",
+	DisplayName:   "pgBackRestInstance",
+	ProjectUrl:    "https://github.com/operasoftware/cnpg-plugin-pgbackrest",
+	RepositoryUrl: "https://github.com/operasoftware/cnpg-plugin-pgbackrest",
 	License:       "APACHE 2.0",
-	LicenseUrl:    "https://github.com/cloudnative-pg/plugin-barman-cloud/LICENSE",
+	LicenseUrl:    "https://github.com/operasoftware/cnpg-plugin-pgbackrest/LICENSE",
 	Maturity:      "alpha",
 }

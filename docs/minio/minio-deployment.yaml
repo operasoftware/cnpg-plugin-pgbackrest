@@ -14,29 +14,58 @@ spec:
       labels:
         app: minio
     spec:
+      # Pgbackrest requires a HTTPS connection. With certificates placed in a correct
+      # directory minio automatically configures itself to use HTTPS.
+      # This is an example how self signed certificates can be generated for this
+      # purpose.
+      initContainers:			
+        - name: "generate-certs",
+          image: "alpine/openssl:latest",
+          args:
+            - "req",
+            - "-x509",
+            - "-newkey",
+            - "rsa:4096",
+            - "-keyout",
+            - "/root/.minio/certs/private.key",
+            - "-out",
+            - "/root/.minio/certs/public.crt",
+            - "-sha256",
+            - "-days",
+            - "3650",
+            - "-nodes",
+            - "-subj",
+            - "/CN=minio"
+          volumeMounts:
+            - name: "certs"
+              mountPath: "/root/.minio/certs"
       containers:
-      - name: minio
-        image: minio/minio
-        ports:
-        - containerPort: 9000
-        volumeMounts:
-        - mountPath: /data
-          name: data
-        args:
-        - server
-        - /data
-        env:
-        - name: MINIO_ACCESS_KEY
-          valueFrom:
-            secretKeyRef: 
-              name: minio
-              key: ACCESS_KEY_ID
-        - name: MINIO_SECRET_KEY
-          valueFrom:
-            secretKeyRef: 
-              name: minio
-              key: ACCESS_SECRET_KEY
+        - name: minio
+          image: minio/minio
+          ports:
+          - containerPort: 9000
+          volumeMounts:
+            - mountPath: /data
+              name: data
+            - name: "certs"
+              mountPath: "/root/.minio/certs"
+          args:
+            - server
+            - /data
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef: 
+                  name: minio
+                  key: ACCESS_KEY_ID
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: 
+                  name: minio
+                  key: ACCESS_SECRET_KEY
       volumes:
-      - name: data
-        persistentVolumeClaim:
-          claimName: minio
+        - name: data
+          persistentVolumeClaim:
+            claimName: minio
+        - name: certs
+          emptyDir: {}

@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/metadata"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
 )
 
 // NewCmd returns the healthcheck command
@@ -29,7 +29,7 @@ func NewCmd() *cobra.Command {
 func unixHealthCheck() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "unix",
-		Short: "executes the health check command on unix:///plugins/barman-cloud.cloudnative-pg.io",
+		Short: "executes the health check command on unix:///plugins/pgbackrest.cnpg.opera.com",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dialPath := fmt.Sprintf("unix://%s", path.Join("/plugins", metadata.PluginName))
 			cli, cliErr := grpc.NewClient(dialPath, grpc.WithTransportCredentials(insecure.NewCredentials()))

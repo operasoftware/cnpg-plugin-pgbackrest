@@ -1,27 +1,44 @@
+/*
+Copyright The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package common
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path"
 	"time"
 
-	"github.com/cloudnative-pg/barman-cloud/pkg/archiver"
-	barmanCommand "github.com/cloudnative-pg/barman-cloud/pkg/command"
-	barmanCredentials "github.com/cloudnative-pg/barman-cloud/pkg/credentials"
-	barmanRestorer "github.com/cloudnative-pg/barman-cloud/pkg/restorer"
 	cnpgv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 	"github.com/cloudnative-pg/cnpg-i/pkg/wal"
 	"github.com/cloudnative-pg/machinery/pkg/log"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/archiver"
+	pgbackrestCommand "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/command"
+	pgbackrestCredentials "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/credentials"
+	pgbackrestRestorer "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/restorer"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	barmancloudv1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/metadata"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/operator/config"
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
 )
 
 // WALServiceImplementation is the implementation of the WAL Service
@@ -55,6 +72,13 @@ func (w WALServiceImplementation) GetCapabilities(
 					},
 				},
 			},
+			{
+				Type: &wal.WALCapability_Rpc{
+					Rpc: &wal.WALCapability_RPC{
+						Type: wal.WALCapability_RPC_TYPE_STATUS,
+					},
+				},
+			},
 		},
 	}, nil
 }
@@ -72,17 +96,17 @@ func (w WALServiceImplementation) Archive(
 		return nil, err
 	}
 
-	var objectStore barmancloudv1.ObjectStore
-	if err := w.Client.Get(ctx, configuration.GetBarmanObjectKey(), &objectStore); err != nil {
+	var archive pgbackrestv1.Archive
+	if err := w.Client.Get(ctx, configuration.GetArchiveObjectKey(), &archive); err != nil {
 		return nil, err
 	}
 
-	envArchive, err := barmanCredentials.EnvSetBackupCloudCredentials(
+	envArchive, err := pgbackrestCredentials.EnvSetBackupCloudCredentials(
 		ctx,
 		w.Client,
-		objectStore.Namespace,
-		&objectStore.Spec.Configuration,
-		os.Environ())
+		archive.Namespace,
+		&archive.Spec.Configuration,
+		utils.SanitizedEnviron())
 	if err != nil {
 		if apierrors.IsForbidden(err) {
 			return nil, errors.New("backup credentials don't yet have access permissions. Will retry reconciliation loop")
@@ -101,7 +125,14 @@ func (w WALServiceImplementation) Archive(
 		return nil, err
 	}
 
-	options, err := arch.BarmanCloudWalArchiveOptions(ctx, &objectStore.Spec.Configuration, configuration.ServerName)
+	// Check if we're ok to archive in the desired destination
+	err = arch.CheckWalArchiveDestination(ctx, &archive.Spec.Configuration, configuration.Stanza, envArchive)
+	if err != nil {
+		log.Error(err, "while checking if pgbackrest repo can be used for archival")
+		return nil, err
+	}
+
+	options, err := arch.PgbackrestWalArchiveOptions(ctx, &archive.Spec.Configuration, configuration.Stanza)
 	if err != nil {
 		return nil, err
 	}
@@ -132,8 +163,9 @@ func (w WALServiceImplementation) Restore(
 		return nil, err
 	}
 
-	var serverName string
-	var objectStoreKey types.NamespacedName
+	var stanza string
+	var archiveKey types.NamespacedName
+	controlledPromotion := false
 
 	var promotionToken string
 	if configuration.Cluster.Spec.ReplicaCluster != nil {
@@ -143,74 +175,76 @@ func (w WALServiceImplementation) Restore(
 	switch {
 	case promotionToken != "" && configuration.Cluster.Status.LastPromotionToken != promotionToken:
 		// This is a replica cluster that is being promoted to a primary cluster
-		// Recover from the replica source object store
-		serverName = configuration.ReplicaSourceServerName
-		objectStoreKey = configuration.GetReplicaSourceBarmanObjectKey()
+		// Recover from the replica source archive
+		stanza = configuration.ReplicaSourceStanza
+		archiveKey = configuration.GetReplicaSourceArchiveObjectKey()
+		controlledPromotion = true
 
 	case configuration.Cluster.IsReplica() && configuration.Cluster.Status.CurrentPrimary == w.InstanceName:
-		// Designated primary on replica cluster, using replica source object store
-		serverName = configuration.ReplicaSourceServerName
-		objectStoreKey = configuration.GetReplicaSourceBarmanObjectKey()
+		// Designated primary on the replica cluster, using the replica source archive
+		stanza = configuration.ReplicaSourceStanza
+		archiveKey = configuration.GetReplicaSourceArchiveObjectKey()
 
 	case configuration.Cluster.Status.CurrentPrimary == "":
-		// Recovery from object store, using recovery object store
-		serverName = configuration.RecoveryServerName
-		objectStoreKey = configuration.GetRecoveryBarmanObjectKey()
+		// Recovery from an archive, using recovery archive
+		stanza = configuration.RecoveryStanza
+		archiveKey = configuration.GetRecoveryArchiveObjectKey()
 
 	default:
-		// Using cluster object store
-		serverName = configuration.ServerName
-		objectStoreKey = configuration.GetBarmanObjectKey()
+		// Using the cluster archive
+		stanza = configuration.Stanza
+		archiveKey = configuration.GetArchiveObjectKey()
 	}
 
-	var objectStore barmancloudv1.ObjectStore
-	if err := w.Client.Get(ctx, objectStoreKey, &objectStore); err != nil {
+	var archive pgbackrestv1.Archive
+	if err := w.Client.Get(ctx, archiveKey, &archive); err != nil {
 		return nil, err
 	}
 
 	contextLogger.Info(
 		"Restoring WAL file",
-		"objectStore", objectStore.Name,
-		"serverName", serverName,
+		"archive", archive.Name,
+		"stanza", stanza,
 		"walName", walName)
-	return &wal.WALRestoreResult{}, w.restoreFromBarmanObjectStore(
-		ctx, configuration.Cluster, &objectStore, serverName, walName, destinationPath)
+	return &wal.WALRestoreResult{}, w.restoreFromPgbackrestArchive(
+		ctx, configuration.Cluster, &archive, stanza, walName, destinationPath, controlledPromotion)
 }
 
-func (w WALServiceImplementation) restoreFromBarmanObjectStore(
+func (w WALServiceImplementation) restoreFromPgbackrestArchive(
 	ctx context.Context,
 	cluster *cnpgv1.Cluster,
-	objectStore *barmancloudv1.ObjectStore,
-	serverName string,
+	archive *pgbackrestv1.Archive,
+	stanza string,
 	walName string,
 	destinationPath string,
+	controlledPromotion bool,
 ) error {
 	contextLogger := log.FromContext(ctx)
 	startTime := time.Now()
 
-	barmanConfiguration := &objectStore.Spec.Configuration
+	pgbackrestConfiguration := &archive.Spec.Configuration
 
-	env := GetRestoreCABundleEnv(barmanConfiguration)
-	credentialsEnv, err := barmanCredentials.EnvSetBackupCloudCredentials(
+	env := GetRestoreCABundleEnv(pgbackrestConfiguration)
+	credentialsEnv, err := pgbackrestCredentials.EnvSetBackupCloudCredentials(
 		ctx,
 		w.Client,
-		objectStore.Namespace,
-		&objectStore.Spec.Configuration,
-		os.Environ(),
+		archive.Namespace,
+		&archive.Spec.Configuration,
+		utils.SanitizedEnviron(),
 	)
 	if err != nil {
 		return fmt.Errorf("while getting recover credentials: %w", err)
 	}
 	env = MergeEnv(env, credentialsEnv)
 
-	options, err := barmanCommand.CloudWalRestoreOptions(ctx, barmanConfiguration, serverName)
+	options, err := pgbackrestCommand.CloudWalRestoreOptions(ctx, pgbackrestConfiguration, stanza, w.PGDataPath)
 	if err != nil {
-		return fmt.Errorf("while getting barman-cloud-wal-restore options: %w", err)
+		return fmt.Errorf("while getting pgbackrest archive-get options: %w", err)
 	}
 
 	// Create the restorer
-	var walRestorer *barmanRestorer.WALRestorer
-	if walRestorer, err = barmanRestorer.New(ctx, env, w.SpoolDirectory); err != nil {
+	var walRestorer *pgbackrestRestorer.WALRestorer
+	if walRestorer, err = pgbackrestRestorer.New(ctx, env, w.SpoolDirectory); err != nil {
 		return fmt.Errorf("while creating the restorer: %w", err)
 	}
 
@@ -236,12 +270,12 @@ func (w WALServiceImplementation) restoreFromBarmanObjectStore(
 	// Step 3: gather the WAL files names to restore. If the required file isn't a regular WAL, we download it directly.
 	var walFilesList []string
 	maxParallel := 1
-	if barmanConfiguration.Wal != nil && barmanConfiguration.Wal.MaxParallel > 1 {
-		maxParallel = barmanConfiguration.Wal.MaxParallel
+	if pgbackrestConfiguration.Wal != nil && pgbackrestConfiguration.Wal.MaxParallel > 1 {
+		maxParallel = pgbackrestConfiguration.Wal.MaxParallel
 	}
 	if IsWALFile(walName) {
 		// If this is a regular WAL file, we try to prefetch
-		if walFilesList, err = gatherWALFilesToRestore(walName, maxParallel); err != nil {
+		if walFilesList, err = gatherWALFilesToRestore(walName, maxParallel, controlledPromotion); err != nil {
 			return fmt.Errorf("while generating the list of WAL files to restore: %w", err)
 		}
 	} else {
@@ -257,7 +291,7 @@ func (w WALServiceImplementation) restoreFromBarmanObjectStore(
 	// is the one that PostgreSQL has requested to restore.
 	// The failure has already been logged in walRestorer.RestoreList method
 	if walStatus[0].Err != nil {
-		if errors.Is(walStatus[0].Err, barmanRestorer.ErrWALNotFound) {
+		if errors.Is(walStatus[0].Err, pgbackrestRestorer.ErrWALNotFound) {
 			return newWALNotFoundError()
 		}
 
@@ -298,11 +332,50 @@ func (w WALServiceImplementation) restoreFromBarmanObjectStore(
 
 // Status implements the WALService interface
 func (w WALServiceImplementation) Status(
-	_ context.Context,
-	_ *wal.WALStatusRequest,
+	ctx context.Context,
+	request *wal.WALStatusRequest,
 ) (*wal.WALStatusResult, error) {
-	// TODO implement me
-	panic("implement me")
+	contextLogger := log.FromContext(ctx)
+	contextLogger.Debug("checking archive status")
+
+	configuration, err := config.NewFromClusterJSON(request.ClusterDefinition)
+	if err != nil {
+		return nil, err
+	}
+
+	var archive pgbackrestv1.Archive
+	if err := w.Client.Get(ctx, configuration.GetArchiveObjectKey(), &archive); err != nil {
+		return nil, err
+	}
+
+	env, err := pgbackrestCredentials.EnvSetBackupCloudCredentials(
+		ctx,
+		w.Client,
+		archive.Namespace,
+		&archive.Spec.Configuration,
+		utils.SanitizedEnviron())
+	if err != nil {
+		if apierrors.IsForbidden(err) {
+			return nil, errors.New("backup credentials don't yet have access permissions. Will retry reconciliation loop")
+		}
+		return nil, err
+	}
+
+	backupCatalog, err := pgbackrestCommand.GetBackupList(ctx, &archive.Spec.Configuration, configuration.Stanza, env)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(backupCatalog.Archive) == 0 {
+		return nil, errors.New("no WAL files found in the archive")
+	}
+
+	result := wal.WALStatusResult{
+		FirstWal: backupCatalog.Archive[0].Min,
+		LastWal:  backupCatalog.Archive[0].Max,
+	}
+
+	return &result, nil
 }
 
 // SetFirstRequired implements the WALService interface
@@ -343,7 +416,7 @@ func isStreamingAvailable(cluster *cnpgv1.Cluster, podName string) bool {
 
 // gatherWALFilesToRestore files a list of possible WAL files to restore, always
 // including as the first one the requested WAL file.
-func gatherWALFilesToRestore(walName string, parallel int) (walList []string, err error) {
+func gatherWALFilesToRestore(walName string, parallel int, controlledPromotion bool) (walList []string, err error) {
 	var segment Segment
 
 	segment, err = SegmentFromName(walName)
@@ -361,6 +434,13 @@ func gatherWALFilesToRestore(walName string, parallel int) (walList []string, er
 	for idx := range segmentList {
 		walList[idx] = segmentList[idx].Name()
 	}
+	// TODO: Consider explicitly downloading the partial file when full file not found.
+	// That would avoid breaking the parallel limit for parallel==1.
+	if controlledPromotion && (len(segmentList) < parallel || parallel == 1) {
+		// Last WAL file during a token-based promotion can be (always is?) a partial one
+		// and pgbackrest won't download it unless extension is explicitly included.
+		walList = append(walList, walList[len(walList)-1]+".partial")
+	}
 
 	return walList, err
 }
@@ -369,7 +449,7 @@ func gatherWALFilesToRestore(walName string, parallel int) (walList []string, er
 var ErrEndOfWALStreamReached = errors.New("end of WAL reached")
 
 // checkEndOfWALStreamFlag returns ErrEndOfWALStreamReached if the flag is set in the restorer.
-func checkEndOfWALStreamFlag(walRestorer *barmanRestorer.WALRestorer) error {
+func checkEndOfWALStreamFlag(walRestorer *pgbackrestRestorer.WALRestorer) error {
 	contain, err := walRestorer.IsEndOfWALStream()
 	if err != nil {
 		return err
@@ -388,9 +468,9 @@ func checkEndOfWALStreamFlag(walRestorer *barmanRestorer.WALRestorer) error {
 
 // isEndOfWALStream returns true if one of the downloads has returned
 // a file-not-found error.
-func isEndOfWALStream(results []barmanRestorer.Result) bool {
+func isEndOfWALStream(results []pgbackrestRestorer.Result) bool {
 	for _, result := range results {
-		if errors.Is(result.Err, barmanRestorer.ErrWALNotFound) {
+		if errors.Is(result.Err, pgbackrestRestorer.ErrWALNotFound) {
 			return true
 		}
 	}

@@ -1,3 +1,20 @@
+/*
+Copyright The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package restore
 
 import (
@@ -7,14 +24,8 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"time"
 
-	"github.com/cloudnative-pg/barman-cloud/pkg/api"
-	barmanArchiver "github.com/cloudnative-pg/barman-cloud/pkg/archiver"
-	barmanCapabilities "github.com/cloudnative-pg/barman-cloud/pkg/capabilities"
-	barmanCatalog "github.com/cloudnative-pg/barman-cloud/pkg/catalog"
-	barmanCommand "github.com/cloudnative-pg/barman-cloud/pkg/command"
-	barmanCredentials "github.com/cloudnative-pg/barman-cloud/pkg/credentials"
-	barmanRestorer "github.com/cloudnative-pg/barman-cloud/pkg/restorer"
 	cnpgv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/postgres"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/utils"
@@ -22,12 +33,19 @@ import (
 	"github.com/cloudnative-pg/machinery/pkg/execlog"
 	"github.com/cloudnative-pg/machinery/pkg/fileutils"
 	"github.com/cloudnative-pg/machinery/pkg/log"
+	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
+	pgbackrestArchiver "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/archiver"
+	pgbackrestCatalog "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/catalog"
+	pgbackrestCommand "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/command"
+	pgbackrestCredentials "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/credentials"
+	pgbackrestRestorer "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/restorer"
+	pgbackrestUtils "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	barmancloudv1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/metadata"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/operator/config"
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
 )
 
 const (
@@ -76,18 +94,18 @@ func (impl JobHookImpl) Restore(
 		return nil, err
 	}
 
-	var recoveryObjectStore barmancloudv1.ObjectStore
-	if err := impl.Client.Get(ctx, configuration.GetRecoveryBarmanObjectKey(), &recoveryObjectStore); err != nil {
+	var recoveryArchive pgbackrestv1.Archive
+	if err := impl.Client.Get(ctx, configuration.GetRecoveryArchiveObjectKey(), &recoveryArchive); err != nil {
 		return nil, err
 	}
 
-	if configuration.BarmanObjectName != "" {
-		var targetObjectStore barmancloudv1.ObjectStore
-		if err := impl.Client.Get(ctx, configuration.GetBarmanObjectKey(), &targetObjectStore); err != nil {
+	if configuration.PgbackrestObjectName != "" {
+		var targeArchive pgbackrestv1.Archive
+		if err := impl.Client.Get(ctx, configuration.GetArchiveObjectKey(), &targeArchive); err != nil {
 			return nil, err
 		}
 
-		if err := impl.checkBackupDestination(ctx, configuration.Cluster, &targetObjectStore.Spec.Configuration); err != nil {
+		if err := impl.checkBackupDestination(ctx, configuration.Cluster, &targeArchive.Spec.Configuration); err != nil {
 			return nil, err
 		}
 	}
@@ -97,19 +115,10 @@ func (impl JobHookImpl) Restore(
 		ctx,
 		impl.Client,
 		configuration.Cluster,
-		&recoveryObjectStore.Spec.Configuration,
-		configuration.RecoveryServerName,
+		&recoveryArchive.Spec.Configuration,
+		configuration.RecoveryStanza,
 	)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := impl.ensureArchiveContainsLastCheckpointRedoWAL(
-		ctx,
-		env,
-		backup,
-		&recoveryObjectStore.Spec.Configuration,
-	); err != nil {
 		return nil, err
 	}
 
@@ -117,7 +126,7 @@ func (impl JobHookImpl) Restore(
 		ctx,
 		backup,
 		env,
-		&recoveryObjectStore.Spec.Configuration,
+		&recoveryArchive.Spec.Configuration,
 	); err != nil {
 		return nil, err
 	}
@@ -130,7 +139,7 @@ func (impl JobHookImpl) Restore(
 
 	config := getRestoreWalConfig()
 
-	contextLogger.Info("sending restore response", "config", config, "env", env)
+	contextLogger.Info("sending restore response", "config", config)
 	return &restore.RestoreResponse{
 		RestoreConfig: config,
 		Envs:          nil,
@@ -142,34 +151,58 @@ func (impl JobHookImpl) restoreDataDir(
 	ctx context.Context,
 	backup *cnpgv1.Backup,
 	env []string,
-	barmanConfiguration *cnpgv1.BarmanObjectStoreConfiguration,
+	pgbackrestConfiguration *pgbackrestApi.PgbackrestConfiguration,
 ) error {
 	var options []string
 
 	if backup.Status.EndpointURL != "" {
 		options = append(options, "--endpoint-url", backup.Status.EndpointURL)
 	}
-	options = append(options, backup.Status.DestinationPath)
-	options = append(options, backup.Status.ServerName)
-	options = append(options, backup.Status.BackupID)
 
-	options, err := barmanCommand.AppendCloudProviderOptionsFromConfiguration(ctx, options, barmanConfiguration)
+	options = append(
+		options,
+		"--stanza", backup.Status.ServerName,
+		"--lock-path",
+		"/controller/tmp/pgbackrest")
+
+	options, err := pgbackrestCommand.AppendCloudProviderOptionsFromConfiguration(ctx, options, pgbackrestConfiguration)
 	if err != nil {
 		return err
 	}
 
-	options = append(options, impl.PgDataPath)
+	options, err = pgbackrestCommand.AppendLogOptionsFromConfiguration(ctx, options, pgbackrestConfiguration)
+	if err != nil {
+		return err
+	}
 
-	log.Info("Starting barman-cloud-restore",
+	options, err = pgbackrestCommand.AppendStanzaOptionsFromConfiguration(
+		ctx,
+		options,
+		pgbackrestConfiguration,
+		impl.PgDataPath,
+		false,
+	)
+	if err != nil {
+		return err
+	}
+
+	options = append(
+		options,
+		"restore",
+		"--set",
+		backup.Status.BackupID,
+	)
+
+	log.Info("Starting pgbackrest restore",
 		"options", options)
 
-	cmd := exec.Command(barmanCapabilities.BarmanCloudRestore, options...) // #nosec G204
+	cmd := exec.Command("pgbackrest", options...) // #nosec G204
 	cmd.Env = env
-	err = execlog.RunStreaming(cmd, barmanCapabilities.BarmanCloudRestore)
+	err = execlog.RunStreaming(cmd, "pgbackrest restore")
 	if err != nil {
 		var exitError *exec.ExitError
 		if errors.As(err, &exitError) {
-			err = barmanCommand.UnmarshalBarmanCloudRestoreExitCode(ctx, exitError.ExitCode())
+			err = pgbackrestCommand.UnmarshalPgbackrestRestoreExitCode(ctx, exitError.ExitCode())
 		}
 
 		log.Error(err, "Can't restore backup")
@@ -179,11 +212,12 @@ func (impl JobHookImpl) restoreDataDir(
 	return nil
 }
 
+// TODO: Likely doesn't make sense for pgbackrest. Might be tricky to implement properly.
 func (impl JobHookImpl) ensureArchiveContainsLastCheckpointRedoWAL(
 	ctx context.Context,
 	env []string,
 	backup *cnpgv1.Backup,
-	barmanConfiguration *cnpgv1.BarmanObjectStoreConfiguration,
+	pgbackrestConfiguration *pgbackrestApi.PgbackrestConfiguration,
 ) error {
 	// it's the full path of the file that will temporarily contain the LastCheckpointRedoWAL
 	const testWALPath = RecoveryTemporaryDirectory + "/test.wal"
@@ -199,17 +233,17 @@ func (impl JobHookImpl) ensureArchiveContainsLastCheckpointRedoWAL(
 		return err
 	}
 
-	rest, err := barmanRestorer.New(ctx, env, impl.SpoolDirectory)
+	rest, err := pgbackrestRestorer.New(ctx, env, impl.SpoolDirectory)
 	if err != nil {
 		return err
 	}
 
-	opts, err := barmanCommand.CloudWalRestoreOptions(ctx, barmanConfiguration, backup.Status.ServerName)
+	opts, err := pgbackrestCommand.CloudWalRestoreOptions(ctx, pgbackrestConfiguration, backup.Status.ServerName, testWALPath)
 	if err != nil {
 		return err
 	}
 
-	if err := rest.Restore(backup.Status.BeginWal, testWALPath, opts); err != nil {
+	if err := rest.Restore(ctx, backup.Status.BeginWal, testWALPath, opts); err != nil {
 		return fmt.Errorf("encountered an error while checking the presence of first needed WAL in the archive: %w", err)
 	}
 
@@ -219,14 +253,14 @@ func (impl JobHookImpl) ensureArchiveContainsLastCheckpointRedoWAL(
 func (impl *JobHookImpl) checkBackupDestination(
 	ctx context.Context,
 	cluster *cnpgv1.Cluster,
-	barmanConfiguration *cnpgv1.BarmanObjectStoreConfiguration,
+	pgbackrestConfiguration *pgbackrestApi.PgbackrestConfiguration,
 ) error {
 	// Get environment from cache
-	env, err := barmanCredentials.EnvSetRestoreCloudCredentials(ctx,
+	env, err := pgbackrestCredentials.EnvSetRestoreCloudCredentials(ctx,
 		impl.Client,
 		cluster.Namespace,
-		barmanConfiguration,
-		os.Environ())
+		pgbackrestConfiguration,
+		pgbackrestUtils.SanitizedEnviron())
 	if err != nil {
 		return fmt.Errorf("can't get credentials for cluster %v: %w", cluster.Name, err)
 	}
@@ -235,8 +269,8 @@ func (impl *JobHookImpl) checkBackupDestination(
 	}
 
 	// Instantiate the WALArchiver to get the proper configuration
-	var walArchiver *barmanArchiver.WALArchiver
-	walArchiver, err = barmanArchiver.New(
+	var walArchiver *pgbackrestArchiver.WALArchiver
+	walArchiver, err = pgbackrestArchiver.New(
 		ctx,
 		env,
 		impl.SpoolDirectory,
@@ -247,26 +281,17 @@ func (impl *JobHookImpl) checkBackupDestination(
 	}
 
 	// TODO: refactor this code elsewhere
-	serverName := cluster.Name
+	stanza := cluster.Name
 	for _, plugin := range cluster.Spec.Plugins {
 		if plugin.IsEnabled() && plugin.Name == metadata.PluginName {
-			if pluginServerName, ok := plugin.Parameters["serverName"]; ok {
-				serverName = pluginServerName
+			if pluginStanza, ok := plugin.Parameters["stanza"]; ok {
+				stanza = pluginStanza
 			}
 		}
 	}
 
-	// Get WAL archive options
-	checkWalOptions, err := walArchiver.BarmanCloudCheckWalArchiveOptions(
-		ctx, barmanConfiguration, serverName)
-	if err != nil {
-		log.Error(err, "while getting barman-cloud-wal-archive options")
-		return err
-	}
-
-	// Check if we're ok to archive in the desired destination
 	if utils.IsEmptyWalArchiveCheckEnabled(&cluster.ObjectMeta) {
-		return walArchiver.CheckWalArchiveDestination(ctx, checkWalOptions)
+		return walArchiver.CheckWalArchiveDestination(ctx, pgbackrestConfiguration, stanza, env)
 	}
 
 	return nil
@@ -328,32 +353,32 @@ func loadBackupObjectFromExternalCluster(
 	ctx context.Context,
 	typedClient client.Client,
 	cluster *cnpgv1.Cluster,
-	recoveryObjectStore *api.BarmanObjectStoreConfiguration,
-	serverName string,
+	recoveryArchive *pgbackrestApi.PgbackrestConfiguration,
+	stanza string,
 ) (*cnpgv1.Backup, []string, error) {
 	contextLogger := log.FromContext(ctx)
 
 	contextLogger.Info("Recovering from external cluster",
-		"serverName", serverName,
-		"objectStore", recoveryObjectStore)
+		"stanza", stanza,
+		"archive", recoveryArchive)
 
-	env, err := barmanCredentials.EnvSetRestoreCloudCredentials(
+	env, err := pgbackrestCredentials.EnvSetRestoreCloudCredentials(
 		ctx,
 		typedClient,
 		cluster.Namespace,
-		recoveryObjectStore,
-		os.Environ())
+		recoveryArchive,
+		pgbackrestUtils.SanitizedEnviron())
 	if err != nil {
 		return nil, nil, err
 	}
 
-	backupCatalog, err := barmanCommand.GetBackupList(ctx, recoveryObjectStore, serverName, env)
+	backupCatalog, err := pgbackrestCommand.GetBackupList(ctx, recoveryArchive, stanza, env)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// We are now choosing the right backup to restore
-	var targetBackup *barmanCatalog.BarmanBackup
+	var targetBackup *pgbackrestCatalog.PgbackrestBackup
 	if cluster.Spec.Bootstrap.Recovery != nil &&
 		cluster.Spec.Bootstrap.Recovery.RecoveryTarget != nil {
 		targetBackup, err = backupCatalog.FindBackupInfo(
@@ -374,26 +399,34 @@ func loadBackupObjectFromExternalCluster(
 	return &cnpgv1.Backup{
 		Spec: cnpgv1.BackupSpec{
 			Cluster: cnpgv1.LocalObjectReference{
-				Name: serverName,
+				Name: stanza,
 			},
 		},
+		// TODO: Finish pgbackrest implementation
 		Status: cnpgv1.BackupStatus{
-			BarmanCredentials: recoveryObjectStore.BarmanCredentials,
-			EndpointCA:        recoveryObjectStore.EndpointCA,
-			EndpointURL:       recoveryObjectStore.EndpointURL,
-			DestinationPath:   recoveryObjectStore.DestinationPath,
-			ServerName:        serverName,
-			BackupID:          targetBackup.ID,
-			Phase:             cnpgv1.BackupPhaseCompleted,
-			StartedAt:         &metav1.Time{Time: targetBackup.BeginTime},
-			StoppedAt:         &metav1.Time{Time: targetBackup.EndTime},
-			BeginWal:          targetBackup.BeginWal,
-			EndWal:            targetBackup.EndWal,
-			BeginLSN:          targetBackup.BeginLSN,
-			EndLSN:            targetBackup.EndLSN,
-			Error:             targetBackup.Error,
-			CommandOutput:     "",
-			CommandError:      "",
+			// BarmanCredentials: recoveryArchive.BarmanCredentials,
+			// EndpointCA:        recoveryArchive.EndpointCA,
+			// EndpointURL:       recoveryArchive.EndpointURL,
+			// DestinationPath:   recoveryArchive.DestinationPath,
+			ServerName: stanza,
+			BackupID:   targetBackup.ID,
+			Phase:      cnpgv1.BackupPhaseCompleted,
+			StartedAt:  &metav1.Time{Time: time.Unix(targetBackup.Time.Start, 0)},
+			StoppedAt:  &metav1.Time{Time: time.Unix(targetBackup.Time.Stop, 0)},
+			BeginWal:   targetBackup.WAL.Start,
+			EndWal:     targetBackup.WAL.Stop,
+			BeginLSN:   targetBackup.LSN.Start,
+			EndLSN:     targetBackup.LSN.Stop,
+			// Error:         targetBackup.Error,
+			CommandOutput: "",
+			CommandError:  "",
+			PluginMetadata: map[string]string{
+				// Same value as in BackupStatus.ServerName, this field is just for
+				// consistency with pgbackrest naming. ServerName comes from tthe cnpg
+				// library and could be omitted but it makes experience closer to the
+				// barman plugin.
+				"stanza": stanza,
+			},
 		},
 	}, env, nil
 }

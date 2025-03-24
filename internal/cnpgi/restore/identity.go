@@ -6,14 +6,14 @@ import (
 	"github.com/cloudnative-pg/cnpg-i/pkg/identity"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/metadata"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
 )
 
 // IdentityImplementation implements IdentityServer
 type IdentityImplementation struct {
 	identity.UnimplementedIdentityServer
-	BarmanObjectKey client.ObjectKey
-	Client          client.Client
+	archiveObjectKey client.ObjectKey
+	Client           client.Client
 }
 
 // GetPluginMetadata implements IdentityServer

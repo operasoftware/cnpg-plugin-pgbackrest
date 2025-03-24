@@ -10,10 +10,10 @@ import (
 	"github.com/spf13/cobra"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cmd/healthcheck"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cmd/instance"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cmd/operator"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cmd/restore"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cmd/healthcheck"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cmd/instance"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cmd/operator"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cmd/restore"
 )
 
 func main() {

@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	pluginBarmanCloudV1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
+	pluginPgbackrestV1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
 )
 
 // NewClient creates a new controller-runtime Kubernetes client.
@@ -88,8 +88,8 @@ func addScheme(cl client.Client) error {
 	if err := certmanagerv1.AddToScheme(scheme); err != nil {
 		return fmt.Errorf("failed to add cert-manager/v1 to scheme: %w", err)
 	}
-	if err := pluginBarmanCloudV1.AddToScheme(scheme); err != nil {
-		return fmt.Errorf("failed to add plugin-barman-cloud/v1 to scheme: %w", err)
+	if err := pluginPgbackrestV1.AddToScheme(scheme); err != nil {
+		return fmt.Errorf("failed to add plugin-pgbackrest/v1 to scheme: %w", err)
 	}
 	if err := cloudnativepgv1.AddToScheme(scheme); err != nil {
 		return fmt.Errorf("failed to add cloudnativepg/v1 to scheme: %w", err)

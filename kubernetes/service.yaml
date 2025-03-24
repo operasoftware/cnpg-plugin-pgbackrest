@@ -2,17 +2,17 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: barman-cloud
-    cnpg.io/pluginName: barman-cloud.cloudnative-pg.io
+    app: pgbackrest
+    cnpg.io/pluginName: pgbackrest.cnpg.opera.com
   annotations:
-    cnpg.io/pluginClientSecret: barman-cloud-client-tls
-    cnpg.io/pluginServerSecret: barman-cloud-server-tls
+    cnpg.io/pluginClientSecret: pgbackrest-client-tls
+    cnpg.io/pluginServerSecret: pgbackrest-server-tls
     cnpg.io/pluginPort: "9090"
-  name: barman-cloud
+  name: pgbackrest
 spec:
   ports:
   - port: 9090
     protocol: TCP
     targetPort: 9090
   selector:
-    app: barman-cloud
+    app: pgbackrest

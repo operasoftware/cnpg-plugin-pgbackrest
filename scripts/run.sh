@@ -20,7 +20,7 @@ instance_image=$(KIND_CLUSTER_NAME="$current_context" KO_DOCKER_REPO=kind.local 
 (
   cp -r kubernetes config "$MYTMPDIR"
   cd "$MYTMPDIR/kubernetes"
-  kustomize edit set image "plugin-barman-cloud=$operator_image"
-  kustomize edit set secret plugin-barman-cloud "--from-literal=SIDECAR_IMAGE=$instance_image"
+  kustomize edit set image "plugin-pgbackrest=$operator_image"
+  kustomize edit set secret plugin-pgbackrest "--from-literal=SIDECAR_IMAGE=$instance_image"
   kubectl apply -k .
 )

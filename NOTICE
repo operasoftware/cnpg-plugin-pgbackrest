@@ -1,0 +1,10 @@
+pgBackRest CNPG-I backup plugin
+Copyright 2025 Opera Norway AS
+
+This product includes software developed by The CloudNativePG Contributors (https://cloudnative-pg.io/).
+
+This project is a fork of Barman Cloud CNPG-I backup plugin (https://github.com/cloudnative-pg/plugin-barman-cloud), commit a124b4cdcd318068a344b502f281ddca870f8a28.
+Copyright The CloudNativePG Contributors
+
+Initial version of files under internal/pgbackrest comes from the  Barman Cloud Library for CloudNativePG (https://github.com/cloudnative-pg/barman-cloud), commit d6ff8b95f3125a48e2ed8754afd83fe2b27c378a.
+Copyright The CloudNativePG Contributors

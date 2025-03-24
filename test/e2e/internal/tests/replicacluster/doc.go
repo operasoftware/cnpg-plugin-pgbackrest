@@ -15,5 +15,5 @@ limitations under the License.
 */
 
 // Package replicacluster contains tests validating replica clusters
-// using the Barman Cloud Plugin.
+// using the pgBackRest Plugin.
 package replicacluster

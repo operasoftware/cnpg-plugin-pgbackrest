@@ -23,8 +23,8 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/certmanager"
-	"github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/cloudnativepg"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/certmanager"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/cloudnativepg"
 )
 
 // SetupOptions contains the options for setting up the test environment.

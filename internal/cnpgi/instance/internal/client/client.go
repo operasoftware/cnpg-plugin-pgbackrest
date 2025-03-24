@@ -48,7 +48,7 @@ func (e *ExtendedClient) isObjectCached(obj client.Object) bool {
 		return true
 	}
 
-	if _, isObjectStore := obj.(*corev1.Secret); isObjectStore {
+	if _, isArchive := obj.(*corev1.Secret); isArchive {
 		return true
 	}
 

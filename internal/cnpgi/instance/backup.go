@@ -1,27 +1,43 @@
+/*
+Copyright The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package instance
 
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 	"time"
 
-	barmanBackup "github.com/cloudnative-pg/barman-cloud/pkg/backup"
-	barmanCapabilities "github.com/cloudnative-pg/barman-cloud/pkg/capabilities"
-	barmanCredentials "github.com/cloudnative-pg/barman-cloud/pkg/credentials"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/postgres"
+	"github.com/cloudnative-pg/cnpg-i-machinery/pkg/pluginhelper/decoder"
 	"github.com/cloudnative-pg/cnpg-i/pkg/backup"
 	"github.com/cloudnative-pg/machinery/pkg/fileutils"
 	"github.com/cloudnative-pg/machinery/pkg/log"
 	pgTime "github.com/cloudnative-pg/machinery/pkg/postgres/time"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	pgbackrestBackup "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/backup"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/catalog"
+	pgbackrestCredentials "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/credentials"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	barmancloudv1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/common"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/metadata"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/operator/config"
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/common"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
 )
 
 // BackupServiceImplementation is the implementation
@@ -29,17 +45,8 @@ import (
 type BackupServiceImplementation struct {
 	Client       client.Client
 	InstanceName string
+	PGDataPath   string
 	backup.UnimplementedBackupServer
-}
-
-// This is an implementation of the barman executor
-// that always instruct the barman library to use the
-// "--name" option for backups. We don't support old
-// Barman versions that do not implement that option.
-type barmanCloudExecutor struct{}
-
-func (barmanCloudExecutor) ShouldForceLegacyBackup() bool {
-	return false
 }
 
 // GetCapabilities implements the BackupService interface
@@ -68,14 +75,21 @@ func (b BackupServiceImplementation) Backup(
 
 	contextLogger.Info("Starting backup")
 
+	backupConfig, err := decoder.DecodeBackup(request.BackupDefinition)
+
+	if err != nil {
+		contextLogger.Error(err, "while getting backup definition")
+		return nil, err
+	}
+
 	configuration, err := config.NewFromClusterJSON(request.ClusterDefinition)
 	if err != nil {
 		return nil, err
 	}
 
-	var objectStore barmancloudv1.ObjectStore
-	if err := b.Client.Get(ctx, configuration.GetBarmanObjectKey(), &objectStore); err != nil {
-		contextLogger.Error(err, "while getting object store", "key", configuration.GetRecoveryBarmanObjectKey())
+	var archive pgbackrestv1.Archive
+	if err := b.Client.Get(ctx, configuration.GetArchiveObjectKey(), &archive); err != nil {
+		contextLogger.Error(err, "while getting archive", "key", configuration.GetRecoveryArchiveObjectKey())
 		return nil, err
 	}
 
@@ -84,28 +98,30 @@ func (b BackupServiceImplementation) Backup(
 		return nil, err
 	}
 
-	capabilities, err := barmanCapabilities.CurrentCapabilities()
-	if err != nil {
-		contextLogger.Error(err, "while getting capabilities")
-		return nil, err
-	}
-	backupCmd := barmanBackup.NewBackupCommand(
-		&objectStore.Spec.Configuration,
-		capabilities,
+	backupCmd := pgbackrestBackup.NewBackupCommand(
+		&archive.Spec.Configuration,
+		backupConfig.Spec.PluginConfiguration,
+		b.PGDataPath,
 	)
 
 	// We need to connect to PostgreSQL and to do that we need
 	// PGHOST (and the like) to be available
-	osEnvironment := os.Environ()
-	caBundleEnvironment := common.GetRestoreCABundleEnv(&objectStore.Spec.Configuration)
-	env, err := barmanCredentials.EnvSetBackupCloudCredentials(
+	osEnvironment := utils.SanitizedEnviron()
+	caBundleEnvironment := common.GetRestoreCABundleEnv(&archive.Spec.Configuration)
+	env, err := pgbackrestCredentials.EnvSetBackupCloudCredentials(
 		ctx,
 		b.Client,
-		objectStore.Namespace,
-		&objectStore.Spec.Configuration,
+		archive.Namespace,
+		&archive.Spec.Configuration,
 		common.MergeEnv(osEnvironment, caBundleEnvironment))
 	if err != nil {
 		contextLogger.Error(err, "while setting backup cloud credentials")
+		return nil, err
+	}
+
+	err = backupCmd.CreatePgbackrestStanza(ctx, configuration.Stanza, env)
+	if err != nil {
+		contextLogger.Error(err, "while initializing pgbackrest stanza")
 		return nil, err
 	}
 
@@ -114,9 +130,8 @@ func (b BackupServiceImplementation) Backup(
 	if err = backupCmd.Take(
 		ctx,
 		backupName,
-		configuration.ServerName,
+		configuration.Stanza,
 		env,
-		barmanCloudExecutor{},
 		postgres.BackupTemporaryDirectory,
 	); err != nil {
 		contextLogger.Error(err, "while taking backup")
@@ -126,28 +141,26 @@ func (b BackupServiceImplementation) Backup(
 	executedBackupInfo, err := backupCmd.GetExecutedBackupInfo(
 		ctx,
 		backupName,
-		configuration.ServerName,
-		barmanCloudExecutor{},
+		configuration.Stanza,
 		env)
 	if err != nil {
 		contextLogger.Error(err, "while getting executed backup info")
 		return nil, err
 	}
 
-	contextLogger.Info("Backup completed", "backup", executedBackupInfo.ID)
+	contextLogger.Info("Backup completed", "backup", executedBackupInfo.Backups[0].ID)
 	return &backup.BackupResult{
-		BackupId:   executedBackupInfo.ID,
-		BackupName: executedBackupInfo.BackupName,
-		StartedAt:  metav1.Time{Time: executedBackupInfo.BeginTime}.Unix(),
-		StoppedAt:  metav1.Time{Time: executedBackupInfo.EndTime}.Unix(),
-		BeginWal:   executedBackupInfo.BeginWal,
-		EndWal:     executedBackupInfo.EndWal,
-		BeginLsn:   executedBackupInfo.BeginLSN,
-		EndLsn:     executedBackupInfo.EndLSN,
+		BackupId:   executedBackupInfo.Backups[0].ID,
+		BackupName: executedBackupInfo.Backups[0].Annotations[catalog.BackupNameAnnotation],
+		StartedAt:  executedBackupInfo.Backups[0].Time.Start,
+		StoppedAt:  executedBackupInfo.Backups[0].Time.Stop,
+		BeginWal:   executedBackupInfo.Backups[0].WAL.Start,
+		EndWal:     executedBackupInfo.Backups[0].WAL.Stop,
+		BeginLsn:   executedBackupInfo.Backups[0].LSN.Start,
+		EndLsn:     executedBackupInfo.Backups[0].LSN.Stop,
 		InstanceId: b.InstanceName,
 		Online:     true,
 		Metadata: map[string]string{
-			"timeline":    strconv.Itoa(executedBackupInfo.TimeLine),
 			"version":     metadata.Data.Version,
 			"name":        metadata.Data.Name,
 			"displayName": metadata.Data.DisplayName,

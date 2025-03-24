@@ -2,14 +2,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
-    app.kubernetes.io/name: plugin-barman-cloud
+    app.kubernetes.io/name: plugin-pgbackrest
     app.kubernetes.io/managed-by: kustomize
-  name: plugin-barman-cloud-binding
+  name: plugin-pgbackrest-binding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: plugin-barman-cloud
+  name: plugin-pgbackrest
 subjects:
 - kind: ServiceAccount
-  name: plugin-barman-cloud
+  name: plugin-pgbackrest
   namespace: cnpg-system

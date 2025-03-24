@@ -7,14 +7,14 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/instance"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/instance"
 )
 
 // NewCmd creates a new instance command
 func NewCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "instance",
-		Short: "Starts the Barman Cloud CNPG-I sidecar plugin",
+		Short: "Starts the Pgbackrest CNPG-I sidecar plugin",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			requiredSettings := []string{
 				"namespace",

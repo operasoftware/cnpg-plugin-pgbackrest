@@ -1,3 +1,20 @@
+/*
+Copyright The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package instance
 
 import (
@@ -14,14 +31,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	barmancloudv1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
-	extendedclient "github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/instance/internal/client"
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
+	extendedclient "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/instance/internal/client"
 )
 
 var scheme = runtime.NewScheme()
 
 func init() {
-	utilruntime.Must(barmancloudv1.AddToScheme(scheme))
+	utilruntime.Must(pgbackrestv1.AddToScheme(scheme))
 	utilruntime.Must(cnpgv1.AddToScheme(scheme))
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 }
@@ -29,7 +46,7 @@ func init() {
 // Start starts the sidecar informers and CNPG-i server
 func Start(ctx context.Context) error {
 	setupLog := log.FromContext(ctx)
-	setupLog.Info("Starting barman cloud instance plugin")
+	setupLog.Info("Starting pgbackrest instance plugin")
 	podName := viper.GetString("pod-name")
 
 	controllerOptions := ctrl.Options{
@@ -38,7 +55,7 @@ func Start(ctx context.Context) error {
 			Cache: &client.CacheOptions{
 				DisableFor: []client.Object{
 					&corev1.Secret{},
-					&barmancloudv1.ObjectStore{},
+					&pgbackrestv1.Archive{},
 					&cnpgv1.Cluster{},
 				},
 			},

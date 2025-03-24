@@ -1,4 +1,4 @@
 ## Append samples of your project ##
 resources:
-- barmancloud_v1_objectstore.yaml
+- pgbackrest_v1_archive.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

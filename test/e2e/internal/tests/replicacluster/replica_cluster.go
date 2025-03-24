@@ -1,5 +1,6 @@
 /*
-Copyright 2024.
+Copyright 2024, The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,10 +28,10 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	internalClient "github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/client"
-	cluster2 "github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/cluster"
-	"github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/command"
-	nmsp "github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/namespace"
+	internalClient "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/client"
+	cluster2 "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/cluster"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/command"
+	nmsp "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/namespace"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -60,11 +61,11 @@ var _ = Describe("Replica cluster", func() {
 			Expect(testResources.SrcObjectStoreResources.Create(ctx, cl)).To(Succeed())
 			Expect(testResources.ReplicaObjectStoreResources.Create(ctx, cl)).To(Succeed())
 
-			By("creating the ObjectStores")
-			Expect(cl.Create(ctx, testResources.SrcObjectStore)).To(Succeed())
+			By("creating the Archives")
+			Expect(cl.Create(ctx, testResources.SrcArchive)).To(Succeed())
 			// We do not need to create the replica object store if we are using the same object store for both clusters.
-			if testResources.ReplicaObjectStore != nil {
-				Expect(cl.Create(ctx, testResources.ReplicaObjectStore)).To(Succeed())
+			if testResources.ReplicaArchive != nil {
+				Expect(cl.Create(ctx, testResources.ReplicaArchive)).To(Succeed())
 			}
 
 			By("Creating a CloudNativePG cluster")
@@ -260,14 +261,6 @@ var _ = Describe("Replica cluster", func() {
 		Entry(
 			"with MinIO",
 			s3ReplicaClusterFactory{},
-		),
-		Entry(
-			"with Azurite",
-			azuriteReplicaClusterFactory{},
-		),
-		Entry(
-			"with fake-gcs-server",
-			gcsReplicaClusterFactory{},
 		),
 	)
 })

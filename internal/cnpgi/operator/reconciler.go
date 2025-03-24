@@ -1,3 +1,20 @@
+/*
+Copyright The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package operator
 
 import (
@@ -14,9 +31,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	barmancloudv1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/operator/config"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/operator/specs"
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/specs"
 )
 
 // ReconcilerImplementation implements the Reconciler capability
@@ -73,16 +90,16 @@ func (r ReconcilerImplementation) Pre(
 
 	pluginConfiguration := config.NewFromCluster(&cluster)
 
-	contextLogger.Debug("parsing barman object configuration")
+	contextLogger.Debug("parsing pgbackrest archive object configuration")
 
-	barmanObjects := make([]barmancloudv1.ObjectStore, 0, len(pluginConfiguration.GetReferredBarmanObjectsKey()))
-	for _, barmanObjectKey := range pluginConfiguration.GetReferredBarmanObjectsKey() {
-		var barmanObject barmancloudv1.ObjectStore
-		if err := r.Client.Get(ctx, barmanObjectKey, &barmanObject); err != nil {
+	archiveObjects := make([]pgbackrestv1.Archive, 0, len(pluginConfiguration.GetReferredArchiveObjectsKey()))
+	for _, archiveObjectKey := range pluginConfiguration.GetReferredArchiveObjectsKey() {
+		var archiveObject pgbackrestv1.Archive
+		if err := r.Client.Get(ctx, archiveObjectKey, &archiveObject); err != nil {
 			if apierrs.IsNotFound(err) {
 				contextLogger.Info(
-					"barman object configuration not found, requeuing",
-					"name", pluginConfiguration.BarmanObjectName,
+					"pgbackrest archive object configuration not found, requeuing",
+					"name", pluginConfiguration.PgbackrestObjectName,
 					"namespace", cluster.Namespace)
 				return &reconciler.ReconcilerHooksResult{
 					Behavior: reconciler.ReconcilerHooksResult_BEHAVIOR_REQUEUE,
@@ -92,10 +109,10 @@ func (r ReconcilerImplementation) Pre(
 			return nil, err
 		}
 
-		barmanObjects = append(barmanObjects, barmanObject)
+		archiveObjects = append(archiveObjects, archiveObject)
 	}
 
-	if err := r.ensureRole(ctx, &cluster, barmanObjects); err != nil {
+	if err := r.ensureRole(ctx, &cluster, archiveObjects); err != nil {
 		return nil, err
 	}
 
@@ -111,9 +128,12 @@ func (r ReconcilerImplementation) Pre(
 
 // Post implements the reconciler interface
 func (r ReconcilerImplementation) Post(
-	_ context.Context,
+	ctx context.Context,
 	_ *reconciler.ReconcilerHooksRequest,
 ) (*reconciler.ReconcilerHooksResult, error) {
+	contextLogger := log.FromContext(ctx)
+	contextLogger.Info("Post hook reconciliation start")
+	contextLogger.Info("Post hook reconciliation completed")
 	return &reconciler.ReconcilerHooksResult{
 		Behavior: reconciler.ReconcilerHooksResult_BEHAVIOR_CONTINUE,
 	}, nil
@@ -122,10 +142,10 @@ func (r ReconcilerImplementation) Post(
 func (r ReconcilerImplementation) ensureRole(
 	ctx context.Context,
 	cluster *cnpgv1.Cluster,
-	barmanObjects []barmancloudv1.ObjectStore,
+	archiveObjects []pgbackrestv1.Archive,
 ) error {
 	contextLogger := log.FromContext(ctx)
-	newRole := specs.BuildRole(cluster, barmanObjects)
+	newRole := specs.BuildRole(cluster, archiveObjects)
 
 	var role rbacv1.Role
 	if err := r.Client.Get(ctx, client.ObjectKey{

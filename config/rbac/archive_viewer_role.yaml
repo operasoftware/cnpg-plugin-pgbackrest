@@ -1,23 +1,23 @@
-# permissions for end users to view objectstores.
+# permissions for end users to view archives.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: plugin-barman-cloud
+    app.kubernetes.io/name: plugin-pgbackrest
     app.kubernetes.io/managed-by: kustomize
-  name: objectstore-viewer-role
+  name: archive-viewer-role
 rules:
 - apiGroups:
-  - barmancloud.cnpg.io
+  - pgbackrest.cnpg.opera.com
   resources:
-  - objectstores
+  - archives
   verbs:
   - get
   - list
   - watch
 - apiGroups:
-  - barmancloud.cnpg.io
+  - pgbackrest.cnpg.opera.com
   resources:
-  - objectstores/status
+  - archives/status
   verbs:
   - get

@@ -1,5 +1,6 @@
 /*
-Copyright 2024.
+Copyright 2024, The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,19 +20,19 @@ package controller
 import (
 	"context"
 
-	barmanapi "github.com/cloudnative-pg/barman-cloud/pkg/api"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	barmancloudv1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
+	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("ObjectStore Controller", func() {
+var _ = Describe("Archive Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -41,19 +42,21 @@ var _ = Describe("ObjectStore Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		objectstore := &barmancloudv1.ObjectStore{}
+		archive := &pgbackrestv1.Archive{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind ObjectStore")
-			err := k8sClient.Get(ctx, typeNamespacedName, objectstore)
+			By("creating the custom resource for the Kind Archive")
+			err := k8sClient.Get(ctx, typeNamespacedName, archive)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &barmancloudv1.ObjectStore{
+				resource := &pgbackrestv1.Archive{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					Spec: barmancloudv1.ObjectStoreSpec{
-						Configuration: barmanapi.BarmanObjectStoreConfiguration{DestinationPath: "/tmp"},
+					Spec: pgbackrestv1.ArchiveSpec{
+						Configuration: pgbackrestApi.PgbackrestConfiguration{
+							Repositories: []pgbackrestApi.PgbackrestRepository{},
+						},
 					},
 					// TODO(user): Specify other spec details if needed.
 				}
@@ -63,16 +66,16 @@ var _ = Describe("ObjectStore Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &barmancloudv1.ObjectStore{}
+			resource := &pgbackrestv1.Archive{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance ObjectStore")
+			By("Cleanup the specific resource instance Archive")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &ObjectStoreReconciler{
+			controllerReconciler := &ArchiveReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}

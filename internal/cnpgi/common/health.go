@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
-// AddHealthCheck adds a health check service to the gRPC server with the tag 'plugin-barman-cloud'
+// AddHealthCheck adds a health check service to the gRPC server with the tag 'plugin-pgbackrest'
 func AddHealthCheck(server *grpc.Server) {
 	grpc_health_v1.RegisterHealthServer(server, &healthServer{}) // replaces default registration
 }

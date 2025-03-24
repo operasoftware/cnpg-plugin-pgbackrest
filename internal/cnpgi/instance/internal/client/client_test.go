@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	v1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
+	v1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -29,7 +29,7 @@ var _ = Describe("ExtendedClient Get", func() {
 	var (
 		extendedClient *ExtendedClient
 		secretInClient *corev1.Secret
-		objectStore    *v1.ObjectStore
+		archive        *v1.Archive
 	)
 
 	BeforeEach(func() {
@@ -39,17 +39,17 @@ var _ = Describe("ExtendedClient Get", func() {
 				Name:      "test-secret",
 			},
 		}
-		objectStore = &v1.ObjectStore{
+		archive = &v1.Archive{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "default",
 				Name:      "test-object-store",
 			},
-			Spec: v1.ObjectStoreSpec{},
+			Spec: v1.ArchiveSpec{},
 		}
 
 		baseClient := fake.NewClientBuilder().
 			WithScheme(scheme).
-			WithObjects(secretInClient, objectStore).Build()
+			WithObjects(secretInClient, archive).Build()
 		extendedClient = NewExtendedClient(baseClient).(*ExtendedClient)
 	})
 

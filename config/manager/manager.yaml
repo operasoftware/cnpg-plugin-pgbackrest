@@ -3,7 +3,7 @@ kind: Namespace
 metadata:
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: plugin-barman-cloud
+    app.kubernetes.io/name: plugin-pgbackrest
     app.kubernetes.io/managed-by: kustomize
   name: system
 ---
@@ -14,7 +14,7 @@ metadata:
   namespace: system
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: plugin-barman-cloud
+    app.kubernetes.io/name: plugin-pgbackrest
     app.kubernetes.io/managed-by: kustomize
 spec:
   selector:
@@ -91,5 +91,5 @@ spec:
           requests:
             cpu: 10m
             memory: 64Mi
-      serviceAccountName: plugin-barman-cloud
+      serviceAccountName: plugin-pgbackrest
       terminationGracePeriodSeconds: 10

@@ -1,5 +1,6 @@
 /*
-Copyright 2024.
+Copyright 2024, The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,8 +34,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	barmancloudv1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/controller"
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/controller"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -45,7 +46,7 @@ var scheme = runtime.NewScheme()
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(barmancloudv1.AddToScheme(scheme))
+	utilruntime.Must(pgbackrestv1.AddToScheme(scheme))
 	utilruntime.Must(cnpgv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
@@ -123,11 +124,11 @@ func Start(ctx context.Context) error {
 		return err
 	}
 
-	if err = (&controller.ObjectStoreReconciler{
+	if err = (&controller.ArchiveReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ObjectStore")
+		setupLog.Error(err, "unable to create controller", "controller", "Archive")
 		return err
 	}
 	// +kubebuilder:scaffold:builder

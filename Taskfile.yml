@@ -8,9 +8,9 @@ output: prefixed
 vars:
   # renovate: datasource=docker depName=kindest/node versioning=semver
   E2E_KUBERNETES_VERSION: v1.32.1
-  E2E_CLUSTER_NAME: barman-cloud-plugin-e2e-{{.E2E_KUBERNETES_VERSION}}
-  REGISTRY_NETWORK: barman-cloud-plugin
-  REGISTRY_NAME: registry.barman-cloud-plugin
+  E2E_CLUSTER_NAME: pgbackrest-plugin-e2e-{{.E2E_KUBERNETES_VERSION}}
+  REGISTRY_NETWORK: pgbackrest-plugin
+  REGISTRY_NAME: registry.pgbackrest-plugin
   REGISTRY_PORT: 5000
   DAGGER_ENGINE_CONTAINER_NAME: e2e-dagger-engine
 
@@ -94,7 +94,7 @@ tasks:
           pushd certs &&
           openssl genrsa -out ca-key.pem 4096 &&
           openssl req -new -x509 -days 365 -key ca-key.pem -sha256 -out ca.pem \
-              -subj "/O=CloudNativePG/OU=Barman Cloud Plugin Testing" &&
+              -subj "/O=CloudNativePG/OU=Pgbackrest Plugin Testing" &&
           openssl genrsa -out server-key.pem 4096 &&
           openssl req -subj "/CN={{ .REGISTRY_NAME }}" -sha256 -new -key server-key.pem -out server.csr &&
           echo subjectAltName = DNS:{{ .REGISTRY_NAME }},IP:127.0.0.1 >> extfile.cnf &&
@@ -159,7 +159,7 @@ tasks:
       - \[ "$(docker inspect -f {{`'{{.State.Running}}'`}} "{{ .DAGGER_ENGINE_CONTAINER_NAME }}" 2> /dev/null )" == 'true' \]
 
   # We build an image and push it to a local registry.
-  # The name is always `plugin-barman-cloud:testing`.
+  # The name is always `plugin-pgbackrest:testing`.
   build-plugin-image:
     desc: Build the operator container image for the plugin
     deps:
@@ -173,10 +173,10 @@ tasks:
       - >
         GITHUB_REF= dagger -s call -m github.com/purpleclay/daggerverse/docker@${DAGGER_DOCKER_SHA}
         build --dir . --file containers/Dockerfile.plugin --platform linux/amd64
-        publish --ref {{ .REGISTRY_NAME }}:{{ .REGISTRY_PORT }}/plugin-barman-cloud --tags testing
+        publish --ref {{ .REGISTRY_NAME }}:{{ .REGISTRY_PORT }}/plugin-pgbackrest --tags testing
 
   # We build an image and push it to a local registry.
-  # The name is always `sidecar-barman-cloud:testing`.
+  # The name is always `sidecar-pgbackrest:testing`.
   build-sidecar-image:
     desc: Build the sidecar container image for the plugin
     deps:
@@ -190,7 +190,7 @@ tasks:
       - >
         GITHUB_REF= dagger -s call -m github.com/purpleclay/daggerverse/docker@${DAGGER_DOCKER_SHA}
         build --dir . --file containers/Dockerfile.sidecar --platform linux/amd64
-        publish --ref {{ .REGISTRY_NAME }}:{{ .REGISTRY_PORT }}/sidecar-barman-cloud --tags testing
+        publish --ref {{ .REGISTRY_NAME }}:{{ .REGISTRY_PORT }}/sidecar-pgbackrest --tags testing
 
   build-images:
     desc: Build the container images for the plugin
@@ -332,7 +332,7 @@ tasks:
         file --path api/v1/zz_generated.deepcopy.go export --path api/v1/zz_generated.deepcopy.go
       - >
         GITHUB_REF= dagger -s call -m github.com/cloudnative-pg/daggerverse/controller-gen@${DAGGER_CONTROLLER_GEN_SHA}
-        controller-gen --source . --args rbac:roleName=plugin-barman-cloud --args crd --args webhook --args paths=./api/...
+        controller-gen --source . --args rbac:roleName=plugin-pgbackrest --args crd --args webhook --args paths=./api/...
         --args output:crd:artifacts:config=config/crd/bases directory --path config/crd/bases export --path config/crd/bases
     sources:
       - ./api/**/*.go
@@ -344,7 +344,7 @@ tasks:
       - controller-gen
     desc: Generate the manifest for the main branch
     vars:
-      GITHUB_REPOSITORY: cloudnative-pg/plugin-barman-cloud
+      GITHUB_REPOSITORY: cloudnative-pg/plugin-pgbackrest
       GITHUB_REF: main
       GITHUB_REF_NAME: main
     cmds:
@@ -395,8 +395,8 @@ tasks:
       - >
         dagger -s call -m https://github.com/sagikazarmark/daggerverse/kustomize@${DAGGER_KUSTOMIZE_SHA}
         edit --source . --dir kubernetes
-        set image --image plugin-barman-cloud={{.PLUGIN_IMAGE_NAME}}:{{.IMAGE_VERSION}}
-        set secret --secret plugin-barman-cloud --from-literal SIDECAR_IMAGE={{.SIDECAR_IMAGE_NAME}}:{{.IMAGE_VERSION}}
+        set image --image plugin-pgbackrest={{.PLUGIN_IMAGE_NAME}}:{{.IMAGE_VERSION}}
+        set secret --secret plugin-pgbackrest --from-literal SIDECAR_IMAGE={{.SIDECAR_IMAGE_NAME}}:{{.IMAGE_VERSION}}
         directory directory --path kubernetes export --path manifest-build
       - >
         dagger -s call -m github.com/sagikazarmark/daggerverse/kustomize@${DAGGER_KUSTOMIZE_SHA}

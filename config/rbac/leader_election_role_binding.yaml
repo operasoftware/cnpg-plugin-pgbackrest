@@ -2,7 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   labels:
-    app.kubernetes.io/name: plugin-barman-cloud
+    app.kubernetes.io/name: plugin-pgbackrest
     app.kubernetes.io/managed-by: kustomize
   name: leader-election-rolebinding
 roleRef:
@@ -11,5 +11,5 @@ roleRef:
   name: leader-election-role
 subjects:
 - kind: ServiceAccount
-  name: plugin-barman-cloud
+  name: plugin-pgbackrest
   namespace: cnpg-system

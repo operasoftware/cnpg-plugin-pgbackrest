@@ -15,5 +15,5 @@ limitations under the License.
 */
 
 // Package backup contains tests for the backup and restore functionality
-// of the Barman Cloud Plugin.
+// of the Pgbackrest Plugin.
 package backup

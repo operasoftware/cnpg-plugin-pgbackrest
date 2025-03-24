@@ -5,16 +5,16 @@
 domain: cnpg.io
 layout:
 - go.kubebuilder.io/v4
-projectName: plugin-barman-cloud
-repo: github.com/cloudnative-pg/plugin-barman-cloud
+projectName: plugin-pgbackrest
+repo: github.com/operasoftware/cnpg-plugin-pgbackrest
 resources:
 - api:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: cnpg.io
-  group: barmancloud
-  kind: ObjectStore
-  path: github.com/cloudnative-pg/plugin-barman-cloud/api/v1
+  domain: cnpg.opera.com
+  group: pgbackrest
+  kind: Archive
+  path: github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1
   version: v1
 version: "3"

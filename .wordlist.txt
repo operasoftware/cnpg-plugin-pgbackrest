@@ -1,6 +1,4 @@
 Azurite
-BarmanObjectStore
-BarmanObjectStores
 CloudNativePG
 Gi
 IfNotPresent
@@ -15,8 +13,6 @@ apiVersion
 apiextensions
 auth
 backends
-barmanObjectName
-barmancloud
 cd
 cloudnative
 clusterrole
@@ -41,6 +37,9 @@ namespace
 namespaces
 objectstore
 objectstores
+pgbackrestObjectName
+pgbackrest
+pgbackrestArchive
 pluginConfiguration
 postgresql
 primaryUpdateStrategy

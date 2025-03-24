@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: plugin-barman-cloud
+  name: plugin-pgbackrest
 rules:
 - apiGroups:
   - ""
@@ -15,9 +15,9 @@ rules:
   - list
   - watch
 - apiGroups:
-  - barmancloud.cnpg.io
+  - pgbackrest.cnpg.opera.com
   resources:
-  - objectstores
+  - archives
   verbs:
   - create
   - delete
@@ -27,15 +27,15 @@ rules:
   - update
   - watch
 - apiGroups:
-  - barmancloud.cnpg.io
+  - pgbackrest.cnpg.opera.com
   resources:
-  - objectstores/finalizers
+  - archives/finalizers
   verbs:
   - update
 - apiGroups:
-  - barmancloud.cnpg.io
+  - pgbackrest.cnpg.opera.com
   resources:
-  - objectstores/status
+  - archives/status
   verbs:
   - get
   - patch

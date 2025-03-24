@@ -1,0 +1,52 @@
+apiVersion: pgbackrest.cnpg.opera.com/v1
+kind: Archive
+metadata:
+  name: minio-store
+spec:
+  configuration:
+    repositories:
+      - destinationPath: /
+        bucket: backups
+        endpointURL: minio:9000
+        disableVerifyTLS: true
+
+        encryption: aes-256-cbc
+        encryptionKey:
+          name: minio
+          key: ENCRYPTION_KEY
+
+        s3Credentials:
+          region: "dummy"
+          accessKeyId:
+            name: minio
+            key: ACCESS_KEY_ID
+          secretAccessKey:
+            name: minio
+            key: ACCESS_SECRET_KEY
+
+        retention:
+          full: 7
+          fullType: time
+            
+    compression: zst
+
+    wal:
+      maxParallel: 4
+
+    data:
+      immediateCheckpoint: true
+      jobs: 4
+      tags:
+        dummy-annotation: foo
+      additionalCommandArgs:
+        - "--buffer-size=5MB"
+        - "--io-timeout=60"
+
+  instanceSidecarConfiguration:
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "2"
+      limits:
+        memory: "2Gi"
+        cpu: "2"

@@ -1,5 +1,6 @@
 /*
-Copyright 2024.
+Copyright 2024, The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +22,7 @@ import (
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -32,10 +34,11 @@ const (
 
 // Resources represents the resources required to create an object store.
 type Resources struct {
-	Deployment *appsv1.Deployment
-	Service    *corev1.Service
-	Secret     *corev1.Secret
-	PVC        *corev1.PersistentVolumeClaim
+	Deployment      *appsv1.Deployment
+	ProvisioningJob *batchv1.Job
+	Service         *corev1.Service
+	Secret          *corev1.Secret
+	PVC             *corev1.PersistentVolumeClaim
 }
 
 // Create creates the object store resources.
@@ -58,6 +61,11 @@ func (osr Resources) Create(ctx context.Context, cl client.Client) error {
 	if osr.Service != nil {
 		if err := cl.Create(ctx, osr.Service); err != nil {
 			return fmt.Errorf("failed to create service: %w", err)
+		}
+	}
+	if osr.ProvisioningJob != nil {
+		if err := cl.Create(ctx, osr.ProvisioningJob); err != nil {
+			return fmt.Errorf("failed to create provisioning job: %w", err)
 		}
 	}
 

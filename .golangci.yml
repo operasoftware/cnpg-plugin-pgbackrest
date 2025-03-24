@@ -5,7 +5,7 @@ linters-settings:
     sections:
       - standard
       - default
-      - prefix(github.com/cloudnative-pg/plugin-barman-cloud)
+      - prefix(github.com/operasoftware/cnpg-plugin-pgbackrest)
       - blank
       - dot
   gosec:

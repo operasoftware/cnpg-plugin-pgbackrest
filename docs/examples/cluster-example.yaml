@@ -6,9 +6,9 @@ spec:
   instances: 3
   imagePullPolicy: Always
   plugins:
-  - name: barman-cloud.cloudnative-pg.io
+  - name: pgbackrest.cnpg.opera.com
     parameters:
-      barmanObjectName: minio-store
+      pgbackrestObjectName: minio-store
 
   storage:
     size: 1Gi

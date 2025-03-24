@@ -1,12 +1,12 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: barman-cloud-server
+  name: pgbackrest-server
 spec:
-  secretName: barman-cloud-server-tls
-  commonName: barman-cloud
+  secretName: pgbackrest-server-tls
+  commonName: pgbackrest
   dnsNames:
-    - barman-cloud
+    - pgbackrest
 
   duration: 2160h # 90d
   renewBefore: 360h # 15d

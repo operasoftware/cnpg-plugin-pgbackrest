@@ -1,3 +1,20 @@
+/*
+Copyright The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package replicacluster
 
 import (
@@ -5,8 +22,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	pluginBarmanCloudV1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
-	"github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/objectstore"
+	pluginPgbackrestV1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/objectstore"
 )
 
 type testCaseFactory interface {
@@ -15,27 +32,24 @@ type testCaseFactory interface {
 
 const (
 	// Size of the PVCs for the object stores and the cluster instances.
-	size                   = "1Gi"
-	srcObjectStoreName     = "source"
-	srcClusterName         = "source"
-	srcBackupName          = "source"
-	replicaObjectStoreName = "replica"
-	replicaClusterName     = "replica"
-	replicaBackupName      = "replica"
-	minioSrc               = "minio-src"
-	minioReplica           = "minio-replica"
-	gcsSrc                 = "fakegcs-src"
-	azuriteSrc             = "azurite-src"
-	azuriteReplica         = "azurite-replica"
+	size               = "1Gi"
+	srcArchiveName     = "source"
+	srcClusterName     = "source"
+	srcBackupName      = "source"
+	replicaArchiveName = "replica"
+	replicaClusterName = "replica"
+	replicaBackupName  = "replica"
+	minioSrc           = "minio-src"
+	minioReplica       = "minio-replica"
 )
 
 type replicaClusterTestResources struct {
 	SrcObjectStoreResources     *objectstore.Resources
-	SrcObjectStore              *pluginBarmanCloudV1.ObjectStore
+	SrcArchive                  *pluginPgbackrestV1.Archive
 	SrcCluster                  *cloudnativepgv1.Cluster
 	SrcBackup                   *cloudnativepgv1.Backup
 	ReplicaObjectStoreResources *objectstore.Resources
-	ReplicaObjectStore          *pluginBarmanCloudV1.ObjectStore
+	ReplicaArchive              *pluginPgbackrestV1.Archive
 	ReplicaCluster              *cloudnativepgv1.Cluster
 	ReplicaBackup               *cloudnativepgv1.Backup
 }
@@ -46,53 +60,11 @@ func (f s3ReplicaClusterFactory) createReplicaClusterTestResources(namespace str
 	result := replicaClusterTestResources{}
 
 	result.SrcObjectStoreResources = objectstore.NewMinioObjectStoreResources(namespace, minioSrc)
-	result.SrcObjectStore = objectstore.NewMinioObjectStore(namespace, srcObjectStoreName, minioSrc)
+	result.SrcArchive = objectstore.NewMinioArchive(namespace, srcArchiveName, minioSrc)
 	result.SrcCluster = newSrcCluster(namespace)
 	result.SrcBackup = newSrcBackup(namespace)
 	result.ReplicaObjectStoreResources = objectstore.NewMinioObjectStoreResources(namespace, minioReplica)
-	result.ReplicaObjectStore = objectstore.NewMinioObjectStore(namespace, replicaObjectStoreName, minioReplica)
-	result.ReplicaCluster = newReplicaCluster(namespace)
-	result.ReplicaBackup = newReplicaBackup(namespace)
-
-	return result
-}
-
-type gcsReplicaClusterFactory struct{}
-
-func (f gcsReplicaClusterFactory) createReplicaClusterTestResources(namespace string) replicaClusterTestResources {
-	result := replicaClusterTestResources{}
-
-	result.SrcObjectStoreResources = objectstore.NewGCSObjectStoreResources(namespace, gcsSrc)
-	result.SrcObjectStore = objectstore.NewGCSObjectStore(namespace, srcObjectStoreName, gcsSrc)
-	result.SrcCluster = newSrcCluster(namespace)
-	result.SrcCluster.Spec.ExternalClusters[1].PluginConfiguration.Parameters["barmanObjectName"] = srcObjectStoreName
-	result.SrcBackup = newSrcBackup(namespace)
-	// fake-gcs-server requires the STORAGE_EMULATOR_HOST environment variable to be set.
-	// We would have to set that variable to different values to point to the different fake-gcs-server instances,
-	// however the plugin does not support injecting in the sidecar variables with the same name and different values,
-	// so we can only point to a single instance. However, this reflects the real-world scenario, since GCS always
-	// points to the same endpoint.
-	result.ReplicaObjectStoreResources = &objectstore.Resources{}
-	result.ReplicaObjectStore = nil
-	result.ReplicaCluster = newReplicaCluster(namespace)
-	result.ReplicaCluster.Spec.Plugins[0].Parameters["barmanObjectName"] = srcObjectStoreName
-	result.ReplicaCluster.Spec.ExternalClusters[1].PluginConfiguration.Parameters["barmanObjectName"] = srcObjectStoreName
-	result.ReplicaBackup = newReplicaBackup(namespace)
-
-	return result
-}
-
-type azuriteReplicaClusterFactory struct{}
-
-func (f azuriteReplicaClusterFactory) createReplicaClusterTestResources(namespace string) replicaClusterTestResources {
-	result := replicaClusterTestResources{}
-
-	result.SrcObjectStoreResources = objectstore.NewAzuriteObjectStoreResources(namespace, azuriteSrc)
-	result.SrcObjectStore = objectstore.NewAzuriteObjectStore(namespace, srcObjectStoreName, azuriteSrc)
-	result.SrcCluster = newSrcCluster(namespace)
-	result.SrcBackup = newSrcBackup(namespace)
-	result.ReplicaObjectStoreResources = objectstore.NewAzuriteObjectStoreResources(namespace, azuriteReplica)
-	result.ReplicaObjectStore = objectstore.NewAzuriteObjectStore(namespace, replicaObjectStoreName, azuriteReplica)
+	result.ReplicaArchive = objectstore.NewMinioArchive(namespace, replicaArchiveName, minioReplica)
 	result.ReplicaCluster = newReplicaCluster(namespace)
 	result.ReplicaBackup = newReplicaBackup(namespace)
 
@@ -114,9 +86,9 @@ func newSrcCluster(namespace string) *cloudnativepgv1.Cluster {
 			ImagePullPolicy: corev1.PullAlways,
 			Plugins: []cloudnativepgv1.PluginConfiguration{
 				{
-					Name: "barman-cloud.cloudnative-pg.io",
+					Name: "pgbackrest.cnpg.opera.com",
 					Parameters: map[string]string{
-						"barmanObjectName": srcObjectStoreName,
+						"pgbackrestObjectName": srcArchiveName,
 					},
 				},
 			},
@@ -136,20 +108,20 @@ func newSrcCluster(namespace string) *cloudnativepgv1.Cluster {
 				{
 					Name: "source",
 					PluginConfiguration: &cloudnativepgv1.PluginConfiguration{
-						Name: "barman-cloud.cloudnative-pg.io",
+						Name: "pgbackrest.cnpg.opera.com",
 						Parameters: map[string]string{
-							"barmanObjectName": srcObjectStoreName,
-							"serverName":       srcClusterName,
+							"pgbackrestObjectName": srcArchiveName,
+							"stanza":               srcClusterName,
 						},
 					},
 				},
 				{
 					Name: "replica",
 					PluginConfiguration: &cloudnativepgv1.PluginConfiguration{
-						Name: "barman-cloud.cloudnative-pg.io",
+						Name: "pgbackrest.cnpg.opera.com",
 						Parameters: map[string]string{
-							"barmanObjectName": replicaObjectStoreName,
-							"serverName":       replicaObjectStoreName,
+							"pgbackrestObjectName": replicaArchiveName,
+							"stanza":               replicaArchiveName,
 						},
 					},
 				},
@@ -176,7 +148,7 @@ func newSrcBackup(namespace string) *cloudnativepgv1.Backup {
 			},
 			Method: "plugin",
 			PluginConfiguration: &cloudnativepgv1.BackupPluginConfiguration{
-				Name: "barman-cloud.cloudnative-pg.io",
+				Name: "pgbackrest.cnpg.opera.com",
 			},
 			Target: "primary",
 		},
@@ -199,8 +171,9 @@ func newReplicaBackup(namespace string) *cloudnativepgv1.Backup {
 			},
 			Method: "plugin",
 			PluginConfiguration: &cloudnativepgv1.BackupPluginConfiguration{
-				Name: "barman-cloud.cloudnative-pg.io",
+				Name: "pgbackrest.cnpg.opera.com",
 			},
+			Target: "primary",
 		},
 	}
 }
@@ -225,9 +198,9 @@ func newReplicaCluster(namespace string) *cloudnativepgv1.Cluster {
 			},
 			Plugins: []cloudnativepgv1.PluginConfiguration{
 				{
-					Name: "barman-cloud.cloudnative-pg.io",
+					Name: "pgbackrest.cnpg.opera.com",
 					Parameters: map[string]string{
-						"barmanObjectName": replicaObjectStoreName,
+						"pgbackrestObjectName": replicaArchiveName,
 					},
 				},
 			},
@@ -240,20 +213,20 @@ func newReplicaCluster(namespace string) *cloudnativepgv1.Cluster {
 				{
 					Name: "source",
 					PluginConfiguration: &cloudnativepgv1.PluginConfiguration{
-						Name: "barman-cloud.cloudnative-pg.io",
+						Name: "pgbackrest.cnpg.opera.com",
 						Parameters: map[string]string{
-							"barmanObjectName": srcObjectStoreName,
-							"serverName":       srcClusterName,
+							"pgbackrestObjectName": srcArchiveName,
+							"stanza":               srcClusterName,
 						},
 					},
 				},
 				{
 					Name: "replica",
 					PluginConfiguration: &cloudnativepgv1.PluginConfiguration{
-						Name: "barman-cloud.cloudnative-pg.io",
+						Name: "pgbackrest.cnpg.opera.com",
 						Parameters: map[string]string{
-							"barmanObjectName": replicaObjectStoreName,
-							"serverName":       replicaObjectStoreName,
+							"pgbackrestObjectName": replicaArchiveName,
+							"stanza":               replicaArchiveName,
 						},
 					},
 				},

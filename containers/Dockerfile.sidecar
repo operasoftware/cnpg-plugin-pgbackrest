@@ -1,8 +1,9 @@
 # Sidecar
-# The container needs to provide and build two components:
-# * barman-cloud
+# The container needs to provide two components:
+# * pgbackrest
 # * instance plugin
-# Both components are built before going into a distroless container
+# Plugin is built before going into a distroless container.
+# Pgbackrest is taken from the package available in the official Postgres repo.
 
 # Build the manager binary
 FROM --platform=$BUILDPLATFORM golang:1.23.5 AS gobuilder
@@ -33,41 +34,32 @@ COPY ../internal/ internal/
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o manager cmd/manager/main.go
 
-# Build barman-cloud
-# pip will build everything inside /usr/ since this is the case
-# we should build and then copy every file into a destination that will
-# then copy into the distroless container
-FROM python:3.13-slim AS pythonbuilder
-COPY containers/sidecar-requirements.txt .
+FROM debian:12-slim AS pgbackrestinstaller
 RUN apt-get update && \
-    apt-get install -y postgresql-common build-essential && \
+    apt-get install -y postgresql-common && \
     /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && \
-    apt-get install -y libpq-dev && \
-    pip install -r sidecar-requirements.txt
-# Prepare a new /usr/ directory with the files we'll need in the final image
-RUN mkdir /new-usr/ && \
-    cp -r --parents /usr/local/lib/ /usr/lib/*-linux-gnu/ /usr/local/bin/ \
-    /new-usr/
+    apt-get install -y pgbackrest
 
 # Joint process
 # Now we put everything that was build from the origin into our
 # distroless container
-FROM gcr.io/distroless/python3-debian12:nonroot
+FROM gcr.io/distroless/cc-debian12:nonroot
 
-ENV SUMMARY="CloudNativePG Barman plugin" \
-    DESCRIPTION="Container image that provides the barman-cloud sidecar"
+ENV SUMMARY="CloudNativePG pgbackrest plugin" \
+    DESCRIPTION="Container image that provides the pgbackrest sidecar"
 
 LABEL summary="$SUMMARY" \
       description="$DESCRIPTION" \
       io.k8s.display-name="$SUMMARY" \
       io.k8s.description="$DESCRIPTION" \
-      name="CloudNativePG Barman plugin sidecar" \
+      name="CloudNativePG pgbackrest plugin sidecar" \
       vendor="CloudNativePG Contributors" \
       url="https://cloudnative-pg.io/" \
       version="" \
       release="1"
 
-COPY --from=pythonbuilder /new-usr/* /usr/
+COPY --from=pgbackrestinstaller /usr/lib/*-linux-gnu /usr/lib/
+COPY --from=pgbackrestinstaller /usr/bin/pgbackrest /usr/bin/pgbackrest
 COPY --from=gobuilder /workspace/manager /manager
 USER 26:26
 ENTRYPOINT ["/manager"]

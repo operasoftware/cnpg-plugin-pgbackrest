@@ -1,5 +1,6 @@
 /*
-Copyright 2024.
+Copyright 2024, The CloudNativePG Contributors.
+Copyright 2025, Opera Norway AS
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,9 +15,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package v1 contains API Schema definitions for the barmancloud v1 API group
+// Package v1 contains API Schema definitions for the pgbackrest v1 API group
 // +kubebuilder:object:generate=true
-// +groupName=barmancloud.cnpg.io
+// +groupName=pgbackrest.cnpg.opera.com
 package v1
 
 import (
@@ -26,7 +27,7 @@ import (
 
 var (
 	// GroupVersion is group version used to register these objects.
-	GroupVersion = schema.GroupVersion{Group: "barmancloud.cnpg.io", Version: "v1"}
+	GroupVersion = schema.GroupVersion{Group: "pgbackrest.cnpg.opera.com", Version: "v1"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme.
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}

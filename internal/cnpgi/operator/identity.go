@@ -5,7 +5,7 @@ import (
 
 	"github.com/cloudnative-pg/cnpg-i/pkg/identity"
 
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/metadata"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
 )
 
 // IdentityImplementation is the implementation of the CNPG-i

@@ -1,11 +1,12 @@
 /*
-Copyright 2024.
+Copyright 2024, The CloudNativePG Contributors
+Copyright 2025, Opera Norway AS
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,13 +28,13 @@ import (
 	kustomizeTypes "sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/resid"
 
-	internalClient "github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/client"
-	"github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/deployment"
-	"github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/e2etestenv"
-	"github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/kustomize"
+	internalClient "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/client"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/deployment"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/e2etestenv"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/kustomize"
 
-	_ "github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/tests/backup"
-	_ "github.com/cloudnative-pg/plugin-barman-cloud/test/e2e/internal/tests/replicacluster"
+	_ "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/tests/backup"
+	_ "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/tests/replicacluster"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -50,23 +51,23 @@ var _ = SynchronizedBeforeSuite(func(ctx SpecContext) []byte {
 		Fail(fmt.Sprintf("failed to setup environment: %v", err))
 	}
 
-	const barmanCloudKustomizationPath = "./kustomize/kubernetes/"
-	barmanCloudKustomization := &kustomizeTypes.Kustomization{
-		Resources: []string{barmanCloudKustomizationPath},
+	const pgbackrestKustomizationPath = "./kustomize/kubernetes/"
+	pgbackrestKustomization := &kustomizeTypes.Kustomization{
+		Resources: []string{pgbackrestKustomizationPath},
 		Images: []kustomizeTypes.Image{
 			{
-				Name:    "docker.io/library/plugin-barman-cloud",
-				NewName: "registry.barman-cloud-plugin:5000/plugin-barman-cloud",
+				Name:    "docker.io/library/plugin-pgbackrest",
+				NewName: "registry.pgbackrest-plugin:5000/plugin-pgbackrest",
 				NewTag:  "testing",
 			},
 		},
 		SecretGenerator: []kustomizeTypes.SecretArgs{
 			{
 				GeneratorArgs: kustomizeTypes.GeneratorArgs{
-					Name:     "plugin-barman-cloud",
+					Name:     "plugin-pgbackrest",
 					Behavior: "replace",
 					KvPairSources: kustomizeTypes.KvPairSources{
-						LiteralSources: []string{"SIDECAR_IMAGE=registry.barman-cloud-plugin:5000/sidecar-barman-cloud:testing"},
+						LiteralSources: []string{"SIDECAR_IMAGE=registry.pgbackrest-plugin:5000/sidecar-pgbackrest:testing"},
 					},
 				},
 			},
@@ -81,7 +82,7 @@ var _ = SynchronizedBeforeSuite(func(ctx SpecContext) []byte {
 							Version: "v1",
 							Kind:    "Deployment",
 						},
-						Name:      "barman-cloud",
+						Name:      "pgbackrest",
 						Namespace: "cnpg-system",
 					},
 				},
@@ -90,7 +91,7 @@ var _ = SynchronizedBeforeSuite(func(ctx SpecContext) []byte {
 		},
 	}
 
-	if err := kustomize.ApplyKustomization(ctx, cl, barmanCloudKustomization); err != nil {
+	if err := kustomize.ApplyKustomization(ctx, cl, pgbackrestKustomization); err != nil {
 		Fail(fmt.Sprintf("failed to apply kustomization: %v", err))
 	}
 	const defaultTimeout = 1 * time.Minute
@@ -99,7 +100,7 @@ var _ = SynchronizedBeforeSuite(func(ctx SpecContext) []byte {
 
 	deploy := apimachineryTypes.NamespacedName{
 		Namespace: "cnpg-system",
-		Name:      "barman-cloud",
+		Name:      "pgbackrest",
 	}
 	err = wait.PollUntilContextCancel(ctxDeploy, 5*time.Second, false,
 		func(ctx context.Context) (bool, error) {
@@ -123,6 +124,6 @@ var _ = SynchronizedBeforeSuite(func(ctx SpecContext) []byte {
 // Run e2e tests using the Ginkgo runner.
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	_, _ = fmt.Fprintf(GinkgoWriter, "Starting plugin-barman-cloud suite\n")
+	_, _ = fmt.Fprintf(GinkgoWriter, "Starting plugin-pgbackrest suite\n")
 	RunSpecs(t, "e2e suite")
 }
