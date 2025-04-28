@@ -39,6 +39,7 @@ objectstore
 objectstores
 pgbackrestObjectName
 pgbackrest
+pgBackRest
 pgbackrestArchive
 pluginConfiguration
 postgresql
