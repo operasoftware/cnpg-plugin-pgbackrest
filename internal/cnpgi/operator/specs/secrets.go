@@ -19,6 +19,7 @@ package specs
 
 import (
 	machineryapi "github.com/cloudnative-pg/machinery/pkg/api"
+
 	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
 )
 

@@ -12,6 +12,8 @@ import (
 // IdentityImplementation implements IdentityServer
 type IdentityImplementation struct {
 	identity.UnimplementedIdentityServer
+	// TODO: Should this field be removed?
+	// nolint: unused
 	archiveObjectKey client.ObjectKey
 	Client           client.Client
 }

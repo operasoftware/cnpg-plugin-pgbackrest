@@ -22,18 +22,29 @@ import (
 	"regexp"
 )
 
-// This pattern should match all service discovery environment variables injected to
+// PgbackrestServiceEnvVarPattern should match all service discovery environment variables injected to
 // the pod by Kubernetes for services with names starting with "pgbackrest".
 var PgbackrestServiceEnvVarPattern = regexp.MustCompile("^PGBACKREST_(?:[A-Z0-9]+_)*(?:PORT|SERVICE)")
 
+// FormatEnv takes an environment variable name and its value. It returns a properly
+// formatted variable with a prefix used by pgBackRest to detect its config variables.
+// Returned value is ready to be passed as a part of the command's env array.
 func FormatEnv(env string, value string) string {
 	return fmt.Sprintf("PGBACKREST_%s=%s", env, value)
 }
 
+// FormatRepoEnv takes a zero-based repository index, an environment variable name and
+// its value. It returns a properly formatted repo-scoped variable with a prefix used
+// by pgBackRest to detect its config variables.
+// Returned value is ready to be passed as a part of the command's env array.
 func FormatRepoEnv(repository int, env string, value string) string {
 	return fmt.Sprintf("PGBACKREST_REPO%d_%s=%s", repository+1, env, value)
 }
 
+// FormatDbEnv takes a zero-based database index, an environment variable name and
+// its value. It returns a properly formatted db-scoped variable with a prefix used
+// by pgBackRest to detect its config variables.
+// Returned value is ready to be passed as a part of the command's env array.
 func FormatDbEnv(database int, env string, value string) string {
 	return fmt.Sprintf("PGBACKREST_PG%d_%s=%s", database, env, value)
 }

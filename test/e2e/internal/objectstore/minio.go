@@ -336,7 +336,7 @@ func NewMinioArchive(namespace, name, minioOSName string) *pluginPgbackrestV1.Ar
 								Region: "dummy",
 								// There is no ingress that would provide domain-based
 								// routing.
-								UriStyle: "path",
+								URIStyle: "path",
 							},
 						},
 						EndpointURL: net.JoinHostPort(minioOSName, "9000"),

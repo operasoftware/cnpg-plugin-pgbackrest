@@ -13,18 +13,23 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package utils
 
 import (
 	"fmt"
 )
 
+// FormatRepoFlag takes a zero-based repository index and a flag name and returns
+// a properly formatted repo-scoped flag ready to be passed as a command argument.
 func FormatRepoFlag(repository int, flag string) string {
 	// Repositories must be indexed from 1 while all iterations are 0-based.
 	// Using repo0 causes a segfault.
 	return fmt.Sprintf("--repo%d-%s", repository+1, flag)
 }
 
+// FormatDbFlag takes a zero-based database index and a flag name and returns
+// a properly formatted db-scoped flag ready to be passed as a command argument.
 func FormatDbFlag(database int, flag string) string {
 	// Databases must be indexed from 1 while all iterations are 0-based.
 	return fmt.Sprintf("--pg%d-%s", database+1, flag)

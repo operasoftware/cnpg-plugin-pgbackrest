@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package restorer manages the cluster restoration process
 package restorer
 
 import (
@@ -183,7 +184,6 @@ func (restorer *WALRestorer) RestoreList(
 					result.DestinationPath = restorer.spool.FileName(strings.TrimSuffix(result.WalName, ".partial"))
 				} else {
 					result.DestinationPath = restorer.spool.FileName(result.WalName)
-
 				}
 			}
 
@@ -275,5 +275,4 @@ func (restorer *WALRestorer) Restore(
 	return fmt.Errorf("encountered an error: '%d' while executing %s",
 		exitCode,
 		"pgbackrest archive-get")
-
 }

@@ -15,6 +15,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package credentials handles the retrieval and injection of credentials stored in
+// Kubernetes secrets
 package credentials
 
 import (
@@ -22,10 +24,11 @@ import (
 	"fmt"
 
 	machineryapi "github.com/cloudnative-pg/machinery/pkg/api"
-	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
-	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
 )
 
 const (
@@ -58,6 +61,8 @@ const (
 	BarmanEndpointCACertificateFileName = "barman-ca.crt"
 )
 
+// EnvSetBackupCloudCredentials sets the AWS environment variables needed for backups
+// given the configuration inside the cluster
 func EnvSetBackupCloudCredentials(
 	ctx context.Context,
 	c client.Client,
@@ -114,7 +119,6 @@ func envSetCloudCredentials(
 				return nil, err
 			}
 		}
-
 	}
 	return env, nil
 }

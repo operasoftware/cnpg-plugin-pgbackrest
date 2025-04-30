@@ -27,11 +27,6 @@ import (
 	cnpgv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 	"github.com/cloudnative-pg/cnpg-i/pkg/wal"
 	"github.com/cloudnative-pg/machinery/pkg/log"
-	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/archiver"
-	pgbackrestCommand "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/command"
-	pgbackrestCredentials "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/credentials"
-	pgbackrestRestorer "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/restorer"
-	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,6 +34,11 @@ import (
 	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/archiver"
+	pgbackrestCommand "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/command"
+	pgbackrestCredentials "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/credentials"
+	pgbackrestRestorer "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/restorer"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
 )
 
 // WALServiceImplementation is the implementation of the WAL Service
@@ -439,6 +439,7 @@ func gatherWALFilesToRestore(walName string, parallel int, controlledPromotion b
 	if controlledPromotion && (len(segmentList) < parallel || parallel == 1) {
 		// Last WAL file during a token-based promotion can be (always is?) a partial one
 		// and pgbackrest won't download it unless extension is explicitly included.
+		// nolint: makezero // This is a rare operation that most likely should be rewritten anyway.
 		walList = append(walList, walList[len(walList)-1]+".partial")
 	}
 

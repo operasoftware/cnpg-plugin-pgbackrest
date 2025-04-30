@@ -91,7 +91,9 @@ func New(
 }
 
 // DeleteFromSpool checks if a WAL file is in the spool and, if it is, remove it
-func (archiver *WALArchiver) DeleteFromSpool(walName string) (hasBeenDeleted bool, err error) {
+func (archiver *WALArchiver) DeleteFromSpool(
+	walName string,
+) (hasBeenDeleted bool, err error) {
 	var isContained bool
 
 	// this code assumes the wal-archive command is run at most once at each instant,
@@ -110,7 +112,11 @@ func (archiver *WALArchiver) ArchiveList(
 	walNames []string,
 	options []string,
 ) (result []WALArchiverResult) {
-	res := archiver.pgbackrestArchiver.ArchiveList(ctx, walNames, options)
+	res := archiver.pgbackrestArchiver.ArchiveList(
+		ctx,
+		walNames,
+		options,
+	)
 	for _, re := range res {
 		result = append(result, WALArchiverResult{
 			WalName:   re.WalName,
@@ -124,7 +130,12 @@ func (archiver *WALArchiver) ArchiveList(
 
 // CheckWalArchiveDestination checks if the destination archive is ready to perform
 // archiving, i.e. if proper stanzas exist.
-func (archiver *WALArchiver) CheckWalArchiveDestination(ctx context.Context, configuration *pgbackrestApi.PgbackrestConfiguration, stanza string, env []string) error {
+func (archiver *WALArchiver) CheckWalArchiveDestination(
+	ctx context.Context,
+	configuration *pgbackrestApi.PgbackrestConfiguration,
+	stanza string,
+	env []string,
+) error {
 	// Probably the easiest way to check if stanza exists is to run "pgbackrest info".
 	// It's possible to use stanza-create instead but it requires the lock file
 	// which makes it unusable during backups.
@@ -146,12 +157,22 @@ func (archiver *WALArchiver) PgbackrestCheckWalArchiveOptions(
 		return nil, err
 	}
 
-	options, err = pgbackrestCommand.AppendStanzaOptionsFromConfiguration(ctx, options, configuration, archiver.pgDataDirectory, true)
+	options, err = pgbackrestCommand.AppendStanzaOptionsFromConfiguration(
+		ctx,
+		options,
+		configuration,
+		archiver.pgDataDirectory,
+		true,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	options, err = pgbackrestCommand.AppendLogOptionsFromConfiguration(ctx, options, configuration)
+	options, err = pgbackrestCommand.AppendLogOptionsFromConfiguration(
+		ctx,
+		options,
+		configuration,
+	)
 	if err != nil {
 		return nil, err
 	}

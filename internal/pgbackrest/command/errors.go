@@ -78,7 +78,7 @@ func (err *CloudRestoreError) IsRetriable() bool {
 
 // UnmarshalPgbackrestRestoreExitCode returns the correct error
 // for a certain pgbackrest exit code
-func UnmarshalPgbackrestRestoreExitCode(ctx context.Context, exitCode int) error {
+func UnmarshalPgbackrestRestoreExitCode(_ context.Context, exitCode int) error {
 	if exitCode == 0 {
 		return nil
 	}

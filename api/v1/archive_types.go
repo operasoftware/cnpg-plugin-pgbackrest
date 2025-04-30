@@ -17,10 +17,10 @@ limitations under the License.
 package v1
 
 import (
-	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
 )
 
 // InstanceSidecarConfiguration defines the configuration for the sidecar that runs in the instance pods.

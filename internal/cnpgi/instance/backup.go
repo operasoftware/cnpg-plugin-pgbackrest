@@ -28,16 +28,16 @@ import (
 	"github.com/cloudnative-pg/machinery/pkg/fileutils"
 	"github.com/cloudnative-pg/machinery/pkg/log"
 	pgTime "github.com/cloudnative-pg/machinery/pkg/postgres/time"
-	pgbackrestBackup "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/backup"
-	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/catalog"
-	pgbackrestCredentials "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/credentials"
-	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/common"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
+	pgbackrestBackup "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/backup"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/catalog"
+	pgbackrestCredentials "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/credentials"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
 )
 
 // BackupServiceImplementation is the implementation
@@ -76,7 +76,6 @@ func (b BackupServiceImplementation) Backup(
 	contextLogger.Info("Starting backup")
 
 	backupConfig, err := decoder.DecodeBackup(request.BackupDefinition)
-
 	if err != nil {
 		contextLogger.Error(err, "while getting backup definition")
 		return nil, err
