@@ -344,7 +344,7 @@ tasks:
       - controller-gen
     desc: Generate the manifest for the main branch
     vars:
-      GITHUB_REPOSITORY: cloudnative-pg/plugin-pgbackrest
+      GITHUB_REPOSITORY: operasoftware/cnpg-plugin-pgbackrest
       GITHUB_REF: main
       GITHUB_REF_NAME: main
     cmds:
