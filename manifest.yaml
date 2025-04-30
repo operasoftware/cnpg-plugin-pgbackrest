@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.1
+    controller-gen.kubebuilder.io/version: v0.16.2
   name: archives.pgbackrest.cnpg.opera.com
 spec:
   group: pgbackrest.cnpg.opera.com
@@ -39,6 +39,8 @@ spec:
             description: ArchiveSpec defines the desired state of Archive.
             properties:
               configuration:
+                description: PgbackrestConfiguration is the configuration of all pgBackRest
+                  operations
                 properties:
                   compression:
                     description: |-
@@ -101,6 +103,10 @@ spec:
                     type: object
                   repositories:
                     items:
+                      description: |-
+                        PgbackrestRepository contains configuration of a single Pgbackrest backup target
+                        repository, including all data needed to properly connect and authenticate with
+                        a selected object store.
                       properties:
                         bucket:
                           minLength: 1

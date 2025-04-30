@@ -33,6 +33,12 @@ import (
 	"github.com/cloudnative-pg/machinery/pkg/execlog"
 	"github.com/cloudnative-pg/machinery/pkg/fileutils"
 	"github.com/cloudnative-pg/machinery/pkg/log"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
 	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
 	pgbackrestArchiver "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/archiver"
 	pgbackrestCatalog "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/catalog"
@@ -40,12 +46,6 @@ import (
 	pgbackrestCredentials "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/credentials"
 	pgbackrestRestorer "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/restorer"
 	pgbackrestUtils "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
-	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
-	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
 )
 
 const (
@@ -213,6 +213,7 @@ func (impl JobHookImpl) restoreDataDir(
 }
 
 // TODO: Likely doesn't make sense for pgbackrest. Might be tricky to implement properly.
+// nolint: unused
 func (impl JobHookImpl) ensureArchiveContainsLastCheckpointRedoWAL(
 	ctx context.Context,
 	env []string,
@@ -233,12 +234,21 @@ func (impl JobHookImpl) ensureArchiveContainsLastCheckpointRedoWAL(
 		return err
 	}
 
-	rest, err := pgbackrestRestorer.New(ctx, env, impl.SpoolDirectory)
+	rest, err := pgbackrestRestorer.New(
+		ctx,
+		env,
+		impl.SpoolDirectory,
+	)
 	if err != nil {
 		return err
 	}
 
-	opts, err := pgbackrestCommand.CloudWalRestoreOptions(ctx, pgbackrestConfiguration, backup.Status.ServerName, testWALPath)
+	opts, err := pgbackrestCommand.CloudWalRestoreOptions(
+		ctx,
+		pgbackrestConfiguration,
+		backup.Status.ServerName,
+		testWALPath,
+	)
 	if err != nil {
 		return err
 	}

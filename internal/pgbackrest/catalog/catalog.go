@@ -27,8 +27,14 @@ import (
 	"github.com/cloudnative-pg/machinery/pkg/types"
 )
 
-const LatestTimelineId = -1
-const BackupNameAnnotation = "cnpg-backup-name"
+const (
+	// LatestTimelineID is used to mark the "latest" timeline option
+	LatestTimelineID = -1
+	// BackupNameAnnotation is used to add CNPG backup name to the pgBackRest backup's
+	// metadata as an annotation. This makes it possible to trace specific backup to
+	// a Backup resource.
+	BackupNameAnnotation = "cnpg-backup-name"
+)
 
 // NewCatalogFromPgbackrestInfo parses the output of pgbackrest info
 func NewCatalogFromPgbackrestInfo(rawJSON string) (*Catalog, error) {
@@ -160,7 +166,6 @@ func (catalog *Catalog) findClosestBackupFromTargetLSN(
 	targetLSNString string,
 	targetTimeline int64,
 ) (*PgbackrestBackup, error) {
-
 	targetLSN := types.LSN(targetLSNString)
 	if _, err := targetLSN.Parse(); err != nil {
 		return nil, fmt.Errorf("while parsing recovery target targetLSN: %s", err.Error())
@@ -174,7 +179,7 @@ func (catalog *Catalog) findClosestBackupFromTargetLSN(
 		if !pgbackrestBackup.isBackupDone() {
 			continue
 		}
-		if (startTimeline <= targetTimeline || targetTimeline == LatestTimelineId) &&
+		if (startTimeline <= targetTimeline || targetTimeline == LatestTimelineID) &&
 			types.LSN(pgbackrestBackup.LSN.Stop).Less(targetLSN) {
 			return &catalog.Backups[i], nil
 		}
@@ -204,7 +209,7 @@ func (catalog *Catalog) findClosestBackupFromTargetTime(
 		// the timeline is the latest one unless it has finished after the specified
 		// restore time.
 		if (startTimeline <= targetTimeline ||
-			targetTimeline == LatestTimelineId) &&
+			targetTimeline == LatestTimelineID) &&
 			!time.Unix(pgbackrestBackup.Time.Stop, 0).After(targetTime) {
 			return &catalog.Backups[i], nil
 		}
@@ -226,7 +231,7 @@ func (catalog *Catalog) findLatestBackupFromTimeline(targetTimeline int64) *Pgba
 		}
 		// Backups are iterated from newest to oldest, so the first backup that spans
 		// the timeline is the latest one.
-		if startTimeline <= targetTimeline || targetTimeline == LatestTimelineId {
+		if startTimeline <= targetTimeline || targetTimeline == LatestTimelineID {
 			return &catalog.Backups[i]
 		}
 	}
@@ -249,7 +254,9 @@ func (catalog *Catalog) findBackupFromID(backupID string) (*PgbackrestBackup, er
 	return nil, fmt.Errorf("no backup found with ID %s", backupID)
 }
 
-func (catalog *Catalog) GetBackupIdFromAnnotatedName(backupName string) string {
+// GetBackupIDFromAnnotatedName returns the ID of the backup with the custom CNPG
+// annotation set to the provided name.
+func (catalog *Catalog) GetBackupIDFromAnnotatedName(backupName string) string {
 	// This function is usually called to retrieve latest backup so it's more efficient
 	// to iterate from the end.
 	for i := len(catalog.Backups) - 1; i >= 0; i-- {
@@ -261,6 +268,7 @@ func (catalog *Catalog) GetBackupIdFromAnnotatedName(backupName string) string {
 	return ""
 }
 
+// PgbackrestBackupLSN represents an LSN range the backup contains
 type PgbackrestBackupLSN struct {
 	// The LSN where the backup started
 	Start string `json:"start"`
@@ -268,6 +276,7 @@ type PgbackrestBackupLSN struct {
 	Stop string `json:"stop"`
 }
 
+// PgbackrestBackupDatabase contains identifying metadata of the database in the stanza
 type PgbackrestBackupDatabase struct {
 	ID       int    `json:"id"`
 	RepoKey  int    `json:"repo_key"`
@@ -275,6 +284,7 @@ type PgbackrestBackupDatabase struct {
 	Version  string `json:"version,omitempty"`
 }
 
+// PgbackrestWALArchive represents a pgBackRest WAL archive for a specific database
 type PgbackrestWALArchive struct {
 	ID string `json:"id"`
 	// First WAL in the archive
@@ -284,6 +294,7 @@ type PgbackrestWALArchive struct {
 	Database PgbackrestBackupDatabase `json:"database"`
 }
 
+// PgbackrestBackupWALArchive represents a WAL archive range the backup contains
 type PgbackrestBackupWALArchive struct {
 	// The WAL where the backup started
 	Start string `json:"start"`
@@ -291,6 +302,7 @@ type PgbackrestBackupWALArchive struct {
 	Stop string `json:"stop"`
 }
 
+// PgbackrestBackupTime represents a time span of the creation of a single backup
 type PgbackrestBackupTime struct {
 	// The moment where the backup started
 	Start int64 `json:"start"`
@@ -316,6 +328,7 @@ type PgbackrestBackup struct {
 	Type string `json:"type"`
 }
 
+// Catalog represents a catalog of archive and backup storages of a specific stanza
 type Catalog struct {
 	Archive    []PgbackrestWALArchive     `json:"archive"`
 	Backups    []PgbackrestBackup         `json:"backup"`
@@ -341,6 +354,7 @@ func (b *PgbackrestBackup) startTimeline() (int64, error) {
 	return strconv.ParseInt(b.WAL.Start[:8], 16, 0)
 }
 
-func (b *PgbackrestBackup) stopTimeline() (int64, error) {
+func (b *PgbackrestBackup) stopTimeline() (int64, error) { // nolint: unused
+	// TODO: Is this method needed?
 	return strconv.ParseInt(b.WAL.Stop[:8], 16, 0)
 }

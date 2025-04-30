@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package backup manages the backup creation process
 package backup
 
 import (
@@ -25,10 +26,10 @@ import (
 	"strconv"
 
 	"github.com/blang/semver"
+	cnpgApiV1 "github.com/cloudnative-pg/api/pkg/api/v1"
 	"github.com/cloudnative-pg/machinery/pkg/execlog"
 	"github.com/cloudnative-pg/machinery/pkg/log"
 
-	cnpgApiV1 "github.com/cloudnative-pg/api/pkg/api/v1"
 	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
 	pgbackrestCatalog "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/catalog"
 	pgbackrestCommand "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/command"
@@ -134,7 +135,13 @@ func (b *Command) GetPgbackrestBackupOptions(
 		return nil, err
 	}
 
-	options, err = pgbackrestCommand.AppendStanzaOptionsFromConfiguration(ctx, options, b.configuration, b.pgDataDirectory, true)
+	options, err = pgbackrestCommand.AppendStanzaOptionsFromConfiguration(
+		ctx,
+		options,
+		b.configuration,
+		b.pgDataDirectory,
+		true,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -180,12 +187,22 @@ func (b *Command) getStanzaCreateOptions(
 		return nil, err
 	}
 
-	options, err = pgbackrestCommand.AppendStanzaOptionsFromConfiguration(ctx, options, b.configuration, b.pgDataDirectory, true)
+	options, err = pgbackrestCommand.AppendStanzaOptionsFromConfiguration(
+		ctx,
+		options,
+		b.configuration,
+		b.pgDataDirectory,
+		true,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	options, err = pgbackrestCommand.AppendLogOptionsFromConfiguration(ctx, options, b.configuration)
+	options, err = pgbackrestCommand.AppendLogOptionsFromConfiguration(
+		ctx,
+		options,
+		b.configuration,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -218,10 +235,11 @@ func (b *Command) GetExecutedBackupInfo(
 }
 
 // IsCompatible checks if pgbackrest can back up this version of PostgreSQL
-func (b *Command) IsCompatible(postgresVers semver.Version) error {
+func (b *Command) IsCompatible(postgresVers semver.Version) error { // nolint: revive
 	// Pgbackrest supports latest 10 major Postgres versions while operator itself
 	// only supports currently maintained releases, i.e. 5 or so.
 	// That means it should be safe to skip this check completely.
+	// TODO: Consider removal.
 	return nil
 }
 

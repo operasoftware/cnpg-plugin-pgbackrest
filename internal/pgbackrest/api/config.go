@@ -82,7 +82,7 @@ type S3Credentials struct {
 	// S3 Repository URI style, either "host" (default) or "path".
 	// TODO: Enforce values via Enum like iin compression.
 	// +optional
-	UriStyle string `json:"uriStyle,omitempty"`
+	URIStyle string `json:"uriStyle,omitempty"`
 }
 
 // PgbackrestCredentials an object containing the potential credentials for each cloud provider
@@ -236,6 +236,9 @@ type DataBackupConfiguration struct {
 	AdditionalCommandArgs []string `json:"additionalCommandArgs,omitempty"`
 }
 
+// PgbackrestRepository contains configuration of a single Pgbackrest backup target
+// repository, including all data needed to properly connect and authenticate with
+// a selected object store.
 type PgbackrestRepository struct {
 	// The potential credentials for each cloud provider
 	PgbackrestCredentials `json:",inline"`
@@ -277,6 +280,8 @@ type PgbackrestRepository struct {
 	// +optional
 	Retention *PgbackrestRetention `json:"retention,omitempty"`
 }
+
+// PgbackrestConfiguration is the configuration of all pgBackRest operations
 type PgbackrestConfiguration struct {
 	Repositories []PgbackrestRepository `json:"repositories"`
 
@@ -318,6 +323,7 @@ func (cfg *WalBackupConfiguration) AppendRestoreAdditionalCommandArgs(options []
 	}
 	return appendAdditionalCommandArgs(cfg.RestoreAdditionalCommandArgs, options)
 }
+
 func appendAdditionalCommandArgs(additionalCommandArgs []string, options []string) []string {
 	optionKeys := map[string]bool{}
 	for _, option := range options {

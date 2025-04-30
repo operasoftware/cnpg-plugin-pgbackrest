@@ -91,11 +91,12 @@ func AppendRetentionOptionsFromConfiguration(
 // appendRetentionOptions takes an options array and adds the retention options specified
 // for the repository as arguments
 func appendRetentionOptions(
-	ctx context.Context,
+	_ context.Context,
 	options []string,
 	repoIndex int,
 	repository *pgbackrestApi.PgbackrestRepository,
-) ([]string, error) {
+) ([]string, error) { // nolint: unparam
+	// TODO: Handle invalid parameters and return errors then remove the nolint comment.
 	if repository.Retention == nil {
 		return options, nil
 	}
@@ -143,16 +144,15 @@ func appendRetentionOptions(
 	}
 
 	return options, nil
-
 }
 
 // appendCloudProviderOptions takes an options array and adds the cloud provider specified as arguments
 func appendCloudProviderOptions(
-	ctx context.Context,
+	_ context.Context,
 	options []string,
 	repoIndex int,
 	repository pgbackrestApi.PgbackrestRepository,
-) ([]string, error) {
+) ([]string, error) { // nolint: unparam
 	options = append(
 		options,
 		utils.FormatRepoFlag(repoIndex, "type"),
@@ -173,11 +173,11 @@ func appendCloudProviderOptions(
 		utils.FormatRepoFlag(repoIndex, "path"), repository.DestinationPath,
 	)
 	if repository.AWS != nil {
-		if len(repository.AWS.UriStyle) > 0 {
+		if len(repository.AWS.URIStyle) > 0 {
 			options = append(
 				options,
 				utils.FormatRepoFlag(repoIndex, "s3-uri-style"),
-				repository.AWS.UriStyle)
+				repository.AWS.URIStyle)
 		}
 	}
 	return options, nil
@@ -188,7 +188,7 @@ func appendCloudProviderOptions(
 func AppendStanzaOptionsFromConfiguration(
 	ctx context.Context,
 	options []string,
-	configuration *pgbackrestApi.PgbackrestConfiguration,
+	configuration *pgbackrestApi.PgbackrestConfiguration, // nolint: revive
 	pgDataDirectory string,
 	clusterRunning bool,
 ) (resOptions []string, err error) {
@@ -201,7 +201,7 @@ func AppendStanzaOptionsFromConfiguration(
 // appendStanzaOptions takes an options array and adds the stanza-specific pgbackrest
 // options required for all operations connecting to the database
 func appendStanzaOptions(
-	ctx context.Context,
+	_ context.Context,
 	options []string,
 	index int,
 	pgDataDirectory string,
@@ -231,7 +231,7 @@ func appendStanzaOptions(
 func AppendLogOptionsFromConfiguration(
 	ctx context.Context,
 	options []string,
-	configuration *pgbackrestApi.PgbackrestConfiguration,
+	configuration *pgbackrestApi.PgbackrestConfiguration, // nolint: revive
 ) (resOptions []string, err error) {
 	return appendLogOptions(ctx, options)
 }
@@ -239,7 +239,7 @@ func AppendLogOptionsFromConfiguration(
 // appendLogOptions takes an options array and adds the stanza-specific pgbackrest
 // options required for all operations connecting to the database
 func appendLogOptions(
-	ctx context.Context,
+	_ context.Context,
 	options []string,
 ) ([]string, error) {
 	// TODO: Those options likely shouldn't be hardcoded.

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package spool maintains the scratch space used for WAL retrieval
 package spool
 
 import (

@@ -202,9 +202,9 @@ func (impl LifecycleImplementation) collectAdditionalEnvs(
 }
 
 func (impl LifecycleImplementation) collectArchiveEnvs(
-	ctx context.Context,
+	_ context.Context,
 	archive *pgbackrestv1.Archive,
-) ([]corev1.EnvVar, error) {
+) ([]corev1.EnvVar, error) { // nolint: unparam
 	return archive.Spec.InstanceSidecarConfiguration.Env, nil
 }
 

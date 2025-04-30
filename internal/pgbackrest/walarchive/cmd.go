@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package walarchive provides support for WAL archive upload
 package walarchive
 
 import (
@@ -30,8 +31,12 @@ import (
 	"github.com/cloudnative-pg/machinery/pkg/log"
 )
 
-const ArchiveCommand = "archive-push"
-const PgbackrestExecutable = "pgbackrest"
+const (
+	// ArchiveCommand defines the pgBackRest command for WAL archive upload
+	ArchiveCommand = "archive-push"
+	// PgbackrestExecutable defines the name of the pgBackRest binary
+	PgbackrestExecutable = "pgbackrest"
+)
 
 // PgbackrestArchiver implements a WAL archiver based
 // on pgbackrest

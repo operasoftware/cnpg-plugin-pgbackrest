@@ -139,8 +139,8 @@ func GetBackupByAnnotatedName(
 	if err != nil {
 		return nil, err
 	}
-	backupId := fullCatalog.GetBackupIdFromAnnotatedName(backupName)
-	if backupId == "" {
+	backupID := fullCatalog.GetBackupIDFromAnnotatedName(backupName)
+	if backupID == "" {
 		contextLogger.Error(err, "Can't find backup with name",
 			"name", backupName)
 		return nil, err
@@ -150,7 +150,7 @@ func GetBackupByAnnotatedName(
 		ctx,
 		pgbackrestConfiguration,
 		stanza,
-		[]string{"--set", backupId},
+		[]string{"--set", backupID},
 		env,
 	)
 	if err != nil {
