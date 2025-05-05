@@ -19,8 +19,8 @@ jobs:
           curl -L https://dl.dagger.io/dagger/install.sh | BIN_DIR=$HOME/.local/bin sh
       - name: Create image and manifest
         env:
-          REGISTRY_USER: ${{ github.actor }}
-          REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
         run: |
           task publish
           task manifest
