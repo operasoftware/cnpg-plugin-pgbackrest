@@ -11,9 +11,9 @@ resources:
 - ../config/rbac
 images:
 - name: plugin-pgbackrest
-  newName: ghcr.io/operasoftware/cnpg-plugin-pgbackrest-testing
+  newName: operasoftware/cnpg-plugin-pgbackrest-testing
   newTag: main
 secretGenerator:
 - literals:
-    - SIDECAR_IMAGE=ghcr.io/operasoftware/cnpg-plugin-pgbackrest-sidecar-testing:main
+    - SIDECAR_IMAGE=operasoftware/cnpg-plugin-pgbackrest-sidecar-testing:main
   name: plugin-pgbackrest

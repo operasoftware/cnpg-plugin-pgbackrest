@@ -781,11 +781,11 @@ subjects:
 apiVersion: v1
 data:
   SIDECAR_IMAGE: |
-    Z2hjci5pby9vcGVyYXNvZnR3YXJlL2NucGctcGx1Z2luLXBnYmFja3Jlc3Qtc2lkZWNhci
-    10ZXN0aW5nOm1haW4=
+    b3BlcmFzb2Z0d2FyZS9jbnBnLXBsdWdpbi1wZ2JhY2tyZXN0LXNpZGVjYXItdGVzdGluZz
+    ptYWlu
 kind: Secret
 metadata:
-  name: plugin-pgbackrest-gd89t8kd44
+  name: plugin-pgbackrest-7fb6h2h74f
   namespace: cnpg-system
 type: Opaque
 ---
@@ -842,8 +842,8 @@ spec:
           valueFrom:
             secretKeyRef:
               key: SIDECAR_IMAGE
-              name: plugin-pgbackrest-gd89t8kd44
-        image: ghcr.io/operasoftware/cnpg-plugin-pgbackrest-testing:main
+              name: plugin-pgbackrest-7fb6h2h74f
+        image: operasoftware/cnpg-plugin-pgbackrest-testing:main
         name: pgbackrest
         ports:
         - containerPort: 9090

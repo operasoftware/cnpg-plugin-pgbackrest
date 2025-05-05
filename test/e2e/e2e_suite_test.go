@@ -56,7 +56,7 @@ var _ = SynchronizedBeforeSuite(func(ctx SpecContext) []byte {
 		Resources: []string{pgbackrestKustomizationPath},
 		Images: []kustomizeTypes.Image{
 			{
-				Name:    "docker.io/library/plugin-pgbackrest",
+				Name:    "operasoftware/cnpg-plugin-pgbackrest-testing",
 				NewName: "registry.pgbackrest-plugin:5000/plugin-pgbackrest",
 				NewTag:  "testing",
 			},
