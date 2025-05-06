@@ -34,6 +34,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Install Task
         uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Dagger
         env:
           # renovate: datasource=github-tags depName=dagger/dagger versioning=semver
