@@ -266,6 +266,8 @@ tasks:
     vars:
       # renovate: datasource=docker depName=golang versioning=semver
       GOLANG_IMAGE_VERSION: 1.23.5
+      # renovate: datasource=docker depName=k3s  versioning=semver
+      K3S_IMAGE_VERSION: 1.29.15
     env:
       _EXPERIMENTAL_DAGGER_RUNNER_HOST: docker-container://{{ .DAGGER_ENGINE_CONTAINER_NAME }}
     cmds:
@@ -274,6 +276,7 @@ tasks:
         --source .
         --ca certs/ca.pem
         --registry {{.REGISTRY_NAME}}:{{.REGISTRY_PORT}}
+        --kubernetes-version v{{ .K3S_IMAGE_VERSION }}-k3s1
         --go-version {{ .GOLANG_IMAGE_VERSION }}
 
   ci:
