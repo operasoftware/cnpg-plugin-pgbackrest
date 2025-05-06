@@ -62,12 +62,19 @@ func (m *E2E) RunEphemeral(
 	// +optional
 	// +default="e2e"
 	name string,
+	// version of the k3s image to use
+	// +optional
+	// +default="latest"
+	kubernetesVersion string,
 	// version of the golang image to use
 	// +optional
 	// +default="latest"
 	goVersion string,
 ) (string, error) {
-	k3s := dag.K3S(name)
+	k3sImage := fmt.Sprintf("rancher/k3s:%s", kubernetesVersion)
+	k3s := dag.K3S(name, dagger.K3SOpts{
+		Image: k3sImage,
+	})
 	ctr := k3s.Container()
 	if ca != nil {
 		ctr = ctr.WithMountedFile("/usr/local/share/ca-certificates/ca.crt", ca)
