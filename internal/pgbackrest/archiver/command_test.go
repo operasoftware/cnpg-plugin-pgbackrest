@@ -61,7 +61,7 @@ var _ = Describe("pgbackrestWalArchiveOptions", func() {
 	})
 
 	It("should generate correct arguments", func(ctx SpecContext) {
-		archiver, err := New(ctx, nil, "spool", "pgdata", tempEmptyWalArchivePath)
+		archiver, err := New(ctx, nil, "/tmp/pgbackrest-test-spool", "pgdata", tempEmptyWalArchivePath)
 		Expect(err).ToNot(HaveOccurred())
 
 		extraOptions := []string{"--buffer-size=5MB", "--io-timeout=60"}
