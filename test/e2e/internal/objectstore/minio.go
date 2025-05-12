@@ -193,7 +193,7 @@ func newMinioProvisioningJob(namespace, name string) *batchv1.Job {
 					RestartPolicy: corev1.RestartPolicyOnFailure,
 					Containers: []corev1.Container{
 						{
-							Name:    name,
+							Name:    name + "-provisioner",
 							Image:   "minio/minio:latest",
 							Command: []string{"bash"},
 							Args: []string{
@@ -201,12 +201,7 @@ func newMinioProvisioningJob(namespace, name string) *batchv1.Job {
 								fmt.Sprintf("mc alias set local https://%s:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD --insecure;\n", name) +
 									"mc mb --insecure local/backups",
 							},
-							Ports: []corev1.ContainerPort{
-								{
-									ContainerPort: 9000,
-									Name:          name,
-								},
-							},
+							TerminationMessagePolicy: "FallbackToLogsOnError",
 							Env: []corev1.EnvVar{
 								{
 									Name: "MINIO_ROOT_USER",
