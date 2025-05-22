@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.1.1...v0.1.2) (2025-05-22)
+
+
+### Bug Fixes
+
+* Update plugin version in metadata ([#5](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/5)) ([81a5547](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/81a554765da4400cc2fafad0c51d10fa40f41985))
+
 ## [0.1.1](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.1.0...v0.1.1) (2025-05-13)
 
 
