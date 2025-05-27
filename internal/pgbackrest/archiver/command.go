@@ -129,7 +129,7 @@ func (archiver *WALArchiver) PgbackrestWalArchiveOptions(
 	// }
 
 	if configuration.Wal != nil {
-		options = configuration.Wal.AppendArchiveAdditionalCommandArgs(options)
+		options = configuration.Wal.AppendAdditionalArchivePushCommandArgs(options)
 	}
 
 	options, err = pgbackrestCommand.AppendCloudProviderOptionsFromConfiguration(ctx, options, configuration)

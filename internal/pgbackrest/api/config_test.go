@@ -22,7 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("DataBackupConfiguration.AppendAdditionalCommandArgs", func() {
+var _ = Describe("DataBackupConfiguration.AppendAdditionalBackupCommandArgs", func() {
 	var options []string
 	var config DataBackupConfiguration
 	BeforeEach(func() {
@@ -33,35 +33,79 @@ var _ = Describe("DataBackupConfiguration.AppendAdditionalCommandArgs", func() {
 	})
 
 	It("should append additional command args to the options", func() {
-		updatedOptions := config.AppendAdditionalCommandArgs(options)
+		updatedOptions := config.AppendAdditionalBackupCommandArgs(options)
 		Expect(updatedOptions).To(Equal([]string{"--option1", "--option2", "--option3", "--option4"}))
 	})
 
 	It("should return the original options if there are no additional command args", func() {
 		config.AdditionalCommandArgs = nil
-		updatedOptions := config.AppendAdditionalCommandArgs(options)
+		updatedOptions := config.AppendAdditionalBackupCommandArgs(options)
 		Expect(updatedOptions).To(Equal(options))
 	})
 })
 
-var _ = Describe("WalBackupConfiguration.AppendAdditionalCommandArgs", func() {
+var _ = Describe("DataBackupConfiguration.AppendAdditionalRestoreCommandArgs", func() {
 	var options []string
-	var config DataBackupConfiguration
+	var config DataRestoreConfiguration
 	BeforeEach(func() {
 		options = []string{"--option1", "--option2"}
-		config = DataBackupConfiguration{
+		config = DataRestoreConfiguration{
 			AdditionalCommandArgs: []string{"--option3", "--option4"},
 		}
 	})
 
 	It("should append additional command args to the options", func() {
-		updatedOptions := config.AppendAdditionalCommandArgs(options)
+		updatedOptions := config.AppendAdditionalRestoreCommandArgs(options)
 		Expect(updatedOptions).To(Equal([]string{"--option1", "--option2", "--option3", "--option4"}))
 	})
 
 	It("should return the original options if there are no additional command args", func() {
 		config.AdditionalCommandArgs = nil
-		updatedOptions := config.AppendAdditionalCommandArgs(options)
+		updatedOptions := config.AppendAdditionalRestoreCommandArgs(options)
+		Expect(updatedOptions).To(Equal(options))
+	})
+})
+
+var _ = Describe("WalBackupConfiguration.AppendAdditionalArchivePushCommandArgs", func() {
+	var options []string
+	var config WalBackupConfiguration
+	BeforeEach(func() {
+		options = []string{"--option1", "--option2"}
+		config = WalBackupConfiguration{
+			ArchiveAdditionalCommandArgs: []string{"--option3", "--option4"},
+		}
+	})
+
+	It("should append additional command args to the options", func() {
+		updatedOptions := config.AppendAdditionalArchivePushCommandArgs(options)
+		Expect(updatedOptions).To(Equal([]string{"--option1", "--option2", "--option3", "--option4"}))
+	})
+
+	It("should return the original options if there are no additional command args", func() {
+		config.ArchiveAdditionalCommandArgs = nil
+		updatedOptions := config.AppendAdditionalArchivePushCommandArgs(options)
+		Expect(updatedOptions).To(Equal(options))
+	})
+})
+
+var _ = Describe("WalBackupConfiguration.AppendAdditionalArchiveGetCommandArgs", func() {
+	var options []string
+	var config WalBackupConfiguration
+	BeforeEach(func() {
+		options = []string{"--option1", "--option2"}
+		config = WalBackupConfiguration{
+			RestoreAdditionalCommandArgs: []string{"--option3", "--option4"},
+		}
+	})
+
+	It("should append additional command args to the options", func() {
+		updatedOptions := config.AppendAdditionalArchiveGetCommandArgs(options)
+		Expect(updatedOptions).To(Equal([]string{"--option1", "--option2", "--option3", "--option4"}))
+	})
+
+	It("should return the original options if there are no additional command args", func() {
+		config.RestoreAdditionalCommandArgs = nil
+		updatedOptions := config.AppendAdditionalArchiveGetCommandArgs(options)
 		Expect(updatedOptions).To(Equal(options))
 	})
 })

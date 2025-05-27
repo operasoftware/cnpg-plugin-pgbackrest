@@ -15,7 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package restorer manages the cluster restoration process
 package restorer
 
 import (
@@ -69,8 +68,8 @@ type Result struct {
 	EndTime time.Time
 }
 
-// New creates a new WAL restorer
-func New(
+// NewWALRestorer creates a new WAL restorer
+func NewWALRestorer(
 	ctx context.Context,
 	env []string,
 	spoolDirectory string,

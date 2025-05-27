@@ -244,7 +244,7 @@ func (w WALServiceImplementation) restoreFromPgbackrestArchive(
 
 	// Create the restorer
 	var walRestorer *pgbackrestRestorer.WALRestorer
-	if walRestorer, err = pgbackrestRestorer.New(ctx, env, w.SpoolDirectory); err != nil {
+	if walRestorer, err = pgbackrestRestorer.NewWALRestorer(ctx, env, w.SpoolDirectory); err != nil {
 		return fmt.Errorf("while creating the restorer: %w", err)
 	}
 

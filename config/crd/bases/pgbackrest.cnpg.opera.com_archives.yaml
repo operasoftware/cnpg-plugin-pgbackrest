@@ -283,6 +283,31 @@ spec:
                       - destinationPath
                       type: object
                     type: array
+                  restore:
+                    description: The configuration to be used to restore the data
+                      files
+                    properties:
+                      additionalCommandArgs:
+                        description: |-
+                          AdditionalCommandArgs represents additional arguments that can be appended
+                          to the 'pgbackrest restore' command-line invocation. These arguments
+                          provide flexibility to customize the restore process further according to
+                          specific requirements or configurations.
+
+                          Note:
+                          It's essential to ensure that the provided arguments are valid and supported
+                          by the 'pgbackrest restore' command, to avoid potential errors or unintended
+                          behavior during execution.
+                        items:
+                          type: string
+                        type: array
+                      jobs:
+                        description: The number of parallel jobs to be used to download
+                          the main backup.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                    type: object
                   stanza:
                     description: |-
                       Pgbackrest stanza (name used in the archive store), the cluster name is used if
