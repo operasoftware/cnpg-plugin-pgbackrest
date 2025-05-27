@@ -88,7 +88,7 @@ func (b *Command) GetDataConfiguration(
 			strconv.Itoa(int(*b.configuration.Data.Jobs)))
 	}
 
-	return b.configuration.Data.AppendAdditionalCommandArgs(options), nil
+	return b.configuration.Data.AppendAdditionalBackupCommandArgs(options), nil
 }
 
 // GetPgbackrestBackupOptions extract the list of command line options to be used with

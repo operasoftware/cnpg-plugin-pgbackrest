@@ -51,7 +51,7 @@ func CloudWalRestoreOptions(
 		"--stanza",
 		stanza)
 
-	options = configuration.Wal.AppendRestoreAdditionalCommandArgs(options)
+	options = configuration.Wal.AppendAdditionalArchiveGetCommandArgs(options)
 
 	return options, nil
 }

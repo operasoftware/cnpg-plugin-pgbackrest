@@ -236,6 +236,28 @@ type DataBackupConfiguration struct {
 	AdditionalCommandArgs []string `json:"additionalCommandArgs,omitempty"`
 }
 
+// DataRestoreConfiguration is the configuration of the main backup restore process
+// (pgbackrest restore call) which is then followed by a series of WAL restore
+// (pgbackrest archive-get) calls using the WalBackupConfiguration
+type DataRestoreConfiguration struct {
+	// The number of parallel jobs to be used to download the main backup.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	Jobs *int32 `json:"jobs,omitempty"`
+
+	// AdditionalCommandArgs represents additional arguments that can be appended
+	// to the 'pgbackrest restore' command-line invocation. These arguments
+	// provide flexibility to customize the restore process further according to
+	// specific requirements or configurations.
+	//
+	// Note:
+	// It's essential to ensure that the provided arguments are valid and supported
+	// by the 'pgbackrest restore' command, to avoid potential errors or unintended
+	// behavior during execution.
+	// +optional
+	AdditionalCommandArgs []string `json:"additionalCommandArgs,omitempty"`
+}
+
 // PgbackrestRepository contains configuration of a single Pgbackrest backup target
 // repository, including all data needed to properly connect and authenticate with
 // a selected object store.
@@ -298,6 +320,10 @@ type PgbackrestConfiguration struct {
 	// +optional
 	Data *DataBackupConfiguration `json:"data,omitempty"`
 
+	// The configuration to be used to restore the data files
+	// +optional
+	Restore *DataRestoreConfiguration `json:"restore,omitempty"`
+
 	// Compress a WAL file before sending it to the object store. Available
 	// options are empty string (no compression, default), `gz`, `bz2`, `lz4` or 'zst'.
 	// +kubebuilder:validation:Enum=gz;bz2;lz4;zst
@@ -316,8 +342,16 @@ func (credentials PgbackrestCredentials) ArePopulated() bool {
 	return credentials.AWS != nil
 }
 
-// AppendRestoreAdditionalCommandArgs adds custom arguments as pgbackrest restore command-line options
-func (cfg *WalBackupConfiguration) AppendRestoreAdditionalCommandArgs(options []string) []string {
+// AppendAdditionalRestoreCommandArgs adds custom arguments as pgbackrest restore command-line options
+func (cfg *DataRestoreConfiguration) AppendAdditionalRestoreCommandArgs(options []string) []string {
+	if cfg == nil || len(cfg.AdditionalCommandArgs) == 0 {
+		return options
+	}
+	return appendAdditionalCommandArgs(cfg.AdditionalCommandArgs, options)
+}
+
+// AppendAdditionalArchiveGetCommandArgs adds custom arguments as pgbackrest archive-get command-line options
+func (cfg *WalBackupConfiguration) AppendAdditionalArchiveGetCommandArgs(options []string) []string {
 	if cfg == nil || len(cfg.RestoreAdditionalCommandArgs) == 0 {
 		return options
 	}
@@ -342,16 +376,16 @@ func appendAdditionalCommandArgs(additionalCommandArgs []string, options []strin
 	return options
 }
 
-// AppendAdditionalCommandArgs adds custom arguments as pgbackrest backup command-line options
-func (cfg *DataBackupConfiguration) AppendAdditionalCommandArgs(options []string) []string {
+// AppendAdditionalBackupCommandArgs adds custom arguments as pgbackrest backup command-line options
+func (cfg *DataBackupConfiguration) AppendAdditionalBackupCommandArgs(options []string) []string {
 	if cfg == nil || len(cfg.AdditionalCommandArgs) == 0 {
 		return options
 	}
 	return appendAdditionalCommandArgs(cfg.AdditionalCommandArgs, options)
 }
 
-// AppendArchiveAdditionalCommandArgs adds custom arguments as pgbackrest archive-push command-line options
-func (cfg *WalBackupConfiguration) AppendArchiveAdditionalCommandArgs(options []string) []string {
+// AppendAdditionalArchivePushCommandArgs adds custom arguments as pgbackrest archive-push command-line options
+func (cfg *WalBackupConfiguration) AppendAdditionalArchivePushCommandArgs(options []string) []string {
 	if cfg == nil || len(cfg.ArchiveAdditionalCommandArgs) == 0 {
 		return options
 	}

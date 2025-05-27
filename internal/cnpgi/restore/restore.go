@@ -19,10 +19,8 @@ package restore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"time"
 
@@ -30,7 +28,6 @@ import (
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/postgres"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/utils"
 	restore "github.com/cloudnative-pg/cnpg-i/pkg/restore/job"
-	"github.com/cloudnative-pg/machinery/pkg/execlog"
 	"github.com/cloudnative-pg/machinery/pkg/fileutils"
 	"github.com/cloudnative-pg/machinery/pkg/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -153,63 +150,12 @@ func (impl JobHookImpl) restoreDataDir(
 	env []string,
 	pgbackrestConfiguration *pgbackrestApi.PgbackrestConfiguration,
 ) error {
-	var options []string
-
-	if backup.Status.EndpointURL != "" {
-		options = append(options, "--endpoint-url", backup.Status.EndpointURL)
-	}
-
-	options = append(
-		options,
-		"--stanza", backup.Status.ServerName,
-		"--lock-path",
-		"/controller/tmp/pgbackrest")
-
-	options, err := pgbackrestCommand.AppendCloudProviderOptionsFromConfiguration(ctx, options, pgbackrestConfiguration)
-	if err != nil {
-		return err
-	}
-
-	options, err = pgbackrestCommand.AppendLogOptionsFromConfiguration(ctx, options, pgbackrestConfiguration)
-	if err != nil {
-		return err
-	}
-
-	options, err = pgbackrestCommand.AppendStanzaOptionsFromConfiguration(
-		ctx,
-		options,
+	restoreCmd := pgbackrestRestorer.NewRestoreCommand(
 		pgbackrestConfiguration,
 		impl.PgDataPath,
-		false,
-	)
-	if err != nil {
-		return err
-	}
-
-	options = append(
-		options,
-		"restore",
-		"--set",
-		backup.Status.BackupID,
 	)
 
-	log.Info("Starting pgbackrest restore",
-		"options", options)
-
-	cmd := exec.Command("pgbackrest", options...) // #nosec G204
-	cmd.Env = env
-	err = execlog.RunStreaming(cmd, "pgbackrest restore")
-	if err != nil {
-		var exitError *exec.ExitError
-		if errors.As(err, &exitError) {
-			err = pgbackrestCommand.UnmarshalPgbackrestRestoreExitCode(ctx, exitError.ExitCode())
-		}
-
-		log.Error(err, "Can't restore backup")
-		return err
-	}
-	log.Info("Restore completed")
-	return nil
+	return restoreCmd.Restore(ctx, backup.Status.BackupID, backup.Status.ServerName, env)
 }
 
 // TODO: Likely doesn't make sense for pgbackrest. Might be tricky to implement properly.
@@ -234,7 +180,7 @@ func (impl JobHookImpl) ensureArchiveContainsLastCheckpointRedoWAL(
 		return err
 	}
 
-	rest, err := pgbackrestRestorer.New(
+	rest, err := pgbackrestRestorer.NewWALRestorer(
 		ctx,
 		env,
 		impl.SpoolDirectory,

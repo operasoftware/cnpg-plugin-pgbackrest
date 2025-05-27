@@ -184,7 +184,7 @@ func (r ReconcilerImplementation) ensureRole(
 		"namespace", newRole.Namespace,
 		"rules", newRole.Rules,
 	)
-
+	// TODO: Something is wrong here, we also should check for ownership.
 	return r.Client.Patch(ctx, newRole, client.MergeFrom(&role))
 }
 
