@@ -184,8 +184,10 @@ func (r ReconcilerImplementation) ensureRole(
 		"namespace", newRole.Namespace,
 		"rules", newRole.Rules,
 	)
-	// TODO: Something is wrong here, we also should check for ownership.
-	return r.Client.Patch(ctx, newRole, client.MergeFrom(&role))
+
+	patch := client.MergeFrom(role.DeepCopy())
+	role.Rules = newRole.Rules
+	return r.Client.Patch(ctx, &role, patch)
 }
 
 func (r ReconcilerImplementation) ensureRoleBinding(
