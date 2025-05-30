@@ -7,7 +7,7 @@ output: prefixed
 # Variables that are shared across tasks.
 vars:
   # renovate: datasource=docker depName=kindest/node versioning=semver
-  E2E_KUBERNETES_VERSION: v1.32.1
+  E2E_KUBERNETES_VERSION: v1.33.1
   E2E_CLUSTER_NAME: pgbackrest-plugin-e2e-{{.E2E_KUBERNETES_VERSION}}
   REGISTRY_NETWORK: pgbackrest-plugin
   REGISTRY_NAME: registry.pgbackrest-plugin
@@ -267,7 +267,7 @@ tasks:
       # renovate: datasource=docker depName=golang versioning=semver
       GOLANG_IMAGE_VERSION: 1.23.5
       # renovate: datasource=docker depName=k3s  versioning=semver
-      K3S_IMAGE_VERSION: 1.29.15
+      K3S_IMAGE_VERSION: 1.33.1
     env:
       _EXPERIMENTAL_DAGGER_RUNNER_HOST: docker-container://{{ .DAGGER_ENGINE_CONTAINER_NAME }}
     cmds:
