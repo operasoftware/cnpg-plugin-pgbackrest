@@ -110,7 +110,7 @@ Use `kubectl` to apply the manifest for the latest commit in the `main` branch:
 <!-- x-release-please-start-version -->
 ```sh
 kubectl apply -f \
-  https://github.com/operasoftware/cnpg-plugin-pgbackrest/releases/download/v0.2.0/manifest.yaml
+  https://github.com/operasoftware/cnpg-plugin-pgbackrest/releases/download/v0.2.1/manifest.yaml
 ```
 <!-- x-release-please-end -->
 

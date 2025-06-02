@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.2.0...v0.2.1) (2025-06-02)
+
+
+### Bug Fixes
+
+* Patch roles properly ([#7](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/7)) ([7e7a3b7](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/7e7a3b71f49d4ea3c272df67e668cc856265de70))
+
 ## [0.2.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.1.1...v0.2.0) (2025-05-28)
 
 
