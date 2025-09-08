@@ -138,6 +138,21 @@ func (impl LifecycleImplementation) calculateSidecarResources(
 	return nil
 }
 
+func (impl LifecycleImplementation) calculateSidecarSecurityContext(
+	ctx context.Context,
+	archive *pgbackrestv1.Archive,
+) *corev1.SecurityContext {
+	contextLogger := log.FromContext(ctx).WithName("lifecycle")
+
+	if archive != nil && archive.Spec.InstanceSidecarConfiguration.SecurityContext != nil {
+		contextLogger.Info("Loading sidecar security context definition from the archive object.")
+		return archive.Spec.InstanceSidecarConfiguration.SecurityContext
+	}
+
+	contextLogger.Info("Security context definition not found in the archive object, using default (no restrictions).")
+	return nil
+}
+
 func (impl LifecycleImplementation) getArchives(
 	ctx context.Context,
 	namespace string,
@@ -223,8 +238,9 @@ func (impl LifecycleImplementation) reconcileJob(
 		return nil, err
 	}
 	resources := impl.calculateSidecarResources(ctx, recoveryArchive)
+	securityContext := impl.calculateSidecarSecurityContext(ctx, recoveryArchive)
 
-	return reconcileJob(ctx, cluster, request, env, resources)
+	return reconcileJob(ctx, cluster, request, env, resources, securityContext)
 }
 
 func reconcileJob(
@@ -233,6 +249,7 @@ func reconcileJob(
 	request *lifecycle.OperatorLifecycleRequest,
 	env []corev1.EnvVar,
 	resources *corev1.ResourceRequirements,
+	securityContext *corev1.SecurityContext,
 ) (*lifecycle.OperatorLifecycleResponse, error) {
 	contextLogger := log.FromContext(ctx).WithName("lifecycle")
 	if pluginConfig := cluster.GetRecoverySourcePlugin(); pluginConfig == nil || pluginConfig.Name != metadata.PluginName {
@@ -268,7 +285,7 @@ func reconcileJob(
 		corev1.Container{
 			Args: []string{"restore"},
 		},
-		env, resources,
+		env, resources, securityContext,
 	); err != nil {
 		return nil, fmt.Errorf("while reconciling pod spec for job: %w", err)
 	}
@@ -299,8 +316,9 @@ func (impl LifecycleImplementation) reconcilePod(
 		return nil, err
 	}
 	resources := impl.calculateSidecarResources(ctx, archive)
+	securityContext := impl.calculateSidecarSecurityContext(ctx, archive)
 
-	return reconcilePod(ctx, cluster, request, pluginConfiguration, env, resources)
+	return reconcilePod(ctx, cluster, request, pluginConfiguration, env, resources, securityContext)
 }
 
 func reconcilePod(
@@ -310,6 +328,7 @@ func reconcilePod(
 	pluginConfiguration *config.PluginConfiguration,
 	env []corev1.EnvVar,
 	resources *corev1.ResourceRequirements,
+	securityContext *corev1.SecurityContext,
 ) (*lifecycle.OperatorLifecycleResponse, error) {
 	pod, err := decoder.DecodePodJSON(request.GetObjectDefinition())
 	if err != nil {
@@ -329,7 +348,7 @@ func reconcilePod(
 			corev1.Container{
 				Args: []string{"instance"},
 			},
-			env, resources,
+			env, resources, securityContext,
 		); err != nil {
 			return nil, fmt.Errorf("while reconciling pod spec for pod: %w", err)
 		}
@@ -355,6 +374,7 @@ func reconcilePodSpec(
 	sidecarConfig corev1.Container,
 	additionalEnvs []corev1.EnvVar,
 	resources *corev1.ResourceRequirements,
+	securityContext *corev1.SecurityContext,
 ) error {
 	envs := []corev1.EnvVar{
 		{
@@ -426,6 +446,10 @@ func reconcilePodSpec(
 
 	if resources != nil {
 		sidecarConfig.Resources = *resources
+	}
+
+	if securityContext != nil {
+		sidecarConfig.SecurityContext = securityContext
 	}
 
 	if err := InjectPluginSidecarPodSpec(spec, &sidecarConfig, mainContainerName, true); err != nil {
