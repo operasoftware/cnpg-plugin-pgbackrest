@@ -18,6 +18,7 @@ limitations under the License.
 package operator
 
 import (
+	"context"
 	"encoding/json"
 
 	cnpgv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
@@ -26,7 +27,9 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -124,7 +127,7 @@ var _ = Describe("LifecycleImplementation", func() {
 				ObjectDefinition: jobJSON,
 			}
 
-			response, err := reconcileJob(ctx, cluster, request, nil, nil)
+			response, err := reconcileJob(ctx, cluster, request, nil, nil, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(response).NotTo(BeNil())
 			Expect(response.JsonPatch).NotTo(BeEmpty())
@@ -145,7 +148,7 @@ var _ = Describe("LifecycleImplementation", func() {
 				ObjectDefinition: jobJSON,
 			}
 
-			response, err := reconcileJob(ctx, cluster, request, nil, nil)
+			response, err := reconcileJob(ctx, cluster, request, nil, nil, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(response).To(BeNil())
 		})
@@ -155,7 +158,7 @@ var _ = Describe("LifecycleImplementation", func() {
 				ObjectDefinition: []byte("invalid-json"),
 			}
 
-			response, err := reconcileJob(ctx, cluster, request, nil, nil)
+			response, err := reconcileJob(ctx, cluster, request, nil, nil, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(response).To(BeNil())
 		})
@@ -182,7 +185,7 @@ var _ = Describe("LifecycleImplementation", func() {
 					ObjectDefinition: jobJSON,
 				}
 
-				response, err := reconcileJob(ctx, cluster, request, nil, nil)
+				response, err := reconcileJob(ctx, cluster, request, nil, nil, nil)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(response).To(BeNil())
 			})
@@ -202,7 +205,7 @@ var _ = Describe("LifecycleImplementation", func() {
 				ObjectDefinition: podJSON,
 			}
 
-			response, err := reconcilePod(ctx, cluster, request, pluginConfiguration, nil, nil)
+			response, err := reconcilePod(ctx, cluster, request, pluginConfiguration, nil, nil, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(response).NotTo(BeNil())
 			Expect(response.JsonPatch).NotTo(BeEmpty())
@@ -220,9 +223,275 @@ var _ = Describe("LifecycleImplementation", func() {
 				ObjectDefinition: []byte("invalid-json"),
 			}
 
-			response, err := reconcilePod(ctx, cluster, request, pluginConfiguration, nil, nil)
+			response, err := reconcilePod(ctx, cluster, request, pluginConfiguration, nil, nil, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(response).To(BeNil())
+		})
+	})
+
+	Describe("calculateSidecarSecurityContext", func() {
+		var ctx context.Context
+
+		BeforeEach(func() {
+			ctx = context.Background()
+		})
+
+		It("returns nil when archive is nil", func() {
+			result := lifecycleImpl.calculateSidecarSecurityContext(ctx, nil)
+			Expect(result).To(BeNil())
+		})
+
+		It("returns nil when archive has no security context", func() {
+			archive := &pgbackrestv1.Archive{
+				Spec: pgbackrestv1.ArchiveSpec{
+					InstanceSidecarConfiguration: pgbackrestv1.InstanceSidecarConfiguration{
+						SecurityContext: nil,
+					},
+				},
+			}
+
+			result := lifecycleImpl.calculateSidecarSecurityContext(ctx, archive)
+			Expect(result).To(BeNil())
+		})
+
+		It("returns configured security context when present", func() {
+			expectedSecurityContext := &corev1.SecurityContext{
+				AllowPrivilegeEscalation: ptr.To(false),
+				ReadOnlyRootFilesystem:   ptr.To(true),
+				RunAsNonRoot:             ptr.To(true),
+				RunAsUser:                ptr.To(int64(26)),
+				RunAsGroup:               ptr.To(int64(26)),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			}
+
+			archive := &pgbackrestv1.Archive{
+				Spec: pgbackrestv1.ArchiveSpec{
+					InstanceSidecarConfiguration: pgbackrestv1.InstanceSidecarConfiguration{
+						SecurityContext: expectedSecurityContext,
+					},
+				},
+			}
+
+			result := lifecycleImpl.calculateSidecarSecurityContext(ctx, archive)
+			Expect(result).To(Equal(expectedSecurityContext))
+		})
+	})
+
+	Describe("reconcilePod with security context", func() {
+		It("applies custom security context to sidecar when configured", func(ctx SpecContext) {
+			// Given
+			pod := &corev1.Pod{
+				TypeMeta: podTypeMeta,
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pod",
+				},
+				Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "postgres"}}},
+			}
+			podJSON, _ := json.Marshal(pod)
+			request := &lifecycle.OperatorLifecycleRequest{
+				ObjectDefinition: podJSON,
+			}
+
+			customSecurityContext := &corev1.SecurityContext{
+				AllowPrivilegeEscalation: ptr.To(false),
+				ReadOnlyRootFilesystem:   ptr.To(true),
+				RunAsNonRoot:             ptr.To(true),
+				RunAsUser:                ptr.To(int64(1000)),
+				RunAsGroup:               ptr.To(int64(1000)),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			}
+
+			response, err := reconcilePod(ctx, cluster, request, pluginConfiguration, nil, nil, customSecurityContext)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response).NotTo(BeNil())
+			Expect(response.JsonPatch).NotTo(BeEmpty())
+
+			var patch []map[string]interface{}
+			err = json.Unmarshal(response.JsonPatch, &patch)
+			Expect(err).NotTo(HaveOccurred())
+
+			var initContainersPatch map[string]interface{}
+			for _, p := range patch {
+				if p["path"] == "/spec/initContainers" && p["op"] == "add" {
+					initContainersPatch = p
+					break
+				}
+			}
+			Expect(initContainersPatch).NotTo(BeNil())
+
+			// Get the init containers patch
+			initContainers, ok := initContainersPatch["value"].([]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(initContainers).To(HaveLen(1))
+
+			// Verify the init container contains the security context
+			container, ok := initContainers[0].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(container).To(HaveKey("securityContext"))
+		})
+
+		It("doesn't set security context when it's nil", func(ctx SpecContext) {
+			pod := &corev1.Pod{
+				TypeMeta: podTypeMeta,
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pod",
+				},
+				Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "postgres"}}},
+			}
+			podJSON, _ := json.Marshal(pod)
+			request := &lifecycle.OperatorLifecycleRequest{
+				ObjectDefinition: podJSON,
+			}
+
+			response, err := reconcilePod(ctx, cluster, request, pluginConfiguration, nil, nil, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response).NotTo(BeNil())
+			Expect(response.JsonPatch).NotTo(BeEmpty())
+
+			var patch []map[string]interface{}
+			err = json.Unmarshal(response.JsonPatch, &patch)
+			Expect(err).NotTo(HaveOccurred())
+
+			var initContainersPatch map[string]interface{}
+			for _, p := range patch {
+				if p["path"] == "/spec/initContainers" && p["op"] == "add" {
+					initContainersPatch = p
+					break
+				}
+			}
+			Expect(initContainersPatch).NotTo(BeNil())
+
+			// Get the init container patch
+			initContainers, ok := initContainersPatch["value"].([]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(initContainers).To(HaveLen(1))
+
+			// Verify the init container doesn't contain the security context
+			container, ok := initContainers[0].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(container).NotTo(HaveKey("securityContext"))
+		})
+	})
+
+	Describe("reconcileJob with security context", func() {
+		It("applies custom security context to job sidecar when configured", func(ctx SpecContext) {
+			job := &batchv1.Job{
+				TypeMeta: jobTypeMeta,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "test-job",
+					Labels: map[string]string{},
+				},
+				Spec: batchv1.JobSpec{Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
+							utils.JobRoleLabelName: "full-recovery",
+						},
+					},
+					Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "full-recovery"}}},
+				}},
+			}
+			jobJSON, _ := json.Marshal(job)
+			request := &lifecycle.OperatorLifecycleRequest{
+				ObjectDefinition: jobJSON,
+			}
+
+			customSecurityContext := &corev1.SecurityContext{
+				AllowPrivilegeEscalation: ptr.To(false),
+				ReadOnlyRootFilesystem:   ptr.To(true),
+				RunAsNonRoot:             ptr.To(true),
+				RunAsUser:                ptr.To(int64(1000)),
+				RunAsGroup:               ptr.To(int64(1000)),
+			}
+
+			response, err := reconcileJob(ctx, cluster, request, nil, nil, customSecurityContext)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response).NotTo(BeNil())
+			Expect(response.JsonPatch).NotTo(BeEmpty())
+
+			var patch []map[string]interface{}
+			err = json.Unmarshal(response.JsonPatch, &patch)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(patch).NotTo(BeEmpty())
+
+			var initContainersPatch map[string]interface{}
+			for _, p := range patch {
+				if p["path"] == "/spec/template/spec/initContainers" && p["op"] == "add" {
+					initContainersPatch = p
+					break
+				}
+			}
+			Expect(initContainersPatch).NotTo(BeNil())
+
+			// Get the init containers patch
+			initContainers, ok := initContainersPatch["value"].([]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(initContainers).To(HaveLen(1))
+
+			// Verify the init container contains the security context
+			container, ok := initContainers[0].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(container).To(HaveKey("securityContext"))
+		})
+
+		It("doesn't set security context when it's nil", func(ctx SpecContext) {
+			job := &batchv1.Job{
+				TypeMeta: jobTypeMeta,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "test-job",
+					Labels: map[string]string{},
+				},
+				Spec: batchv1.JobSpec{Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
+							utils.JobRoleLabelName: "full-recovery",
+						},
+					},
+					Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "full-recovery"}}},
+				}},
+			}
+			jobJSON, _ := json.Marshal(job)
+			request := &lifecycle.OperatorLifecycleRequest{
+				ObjectDefinition: jobJSON,
+			}
+
+			response, err := reconcileJob(ctx, cluster, request, nil, nil, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response).NotTo(BeNil())
+			Expect(response.JsonPatch).NotTo(BeEmpty())
+
+			var patch []map[string]interface{}
+			err = json.Unmarshal(response.JsonPatch, &patch)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(patch).NotTo(BeEmpty())
+
+			var initContainersPatch map[string]interface{}
+			for _, p := range patch {
+				if p["path"] == "/spec/template/spec/initContainers" && p["op"] == "add" {
+					initContainersPatch = p
+					break
+				}
+			}
+			Expect(initContainersPatch).NotTo(BeNil())
+
+			// Get the init containers patch
+			initContainers, ok := initContainersPatch["value"].([]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(initContainers).To(HaveLen(1))
+
+			// Verify the init container doesn't contain the security context
+			container, ok := initContainers[0].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(container).NotTo(HaveKey("securityContext"))
 		})
 	})
 })

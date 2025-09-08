@@ -32,6 +32,9 @@ type InstanceSidecarConfiguration struct {
 	// Resources allocated for the sidecar
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	// SecurityContext for the sidecar container
+	// +optional
+	SecurityContext *corev1.SecurityContext `json:"securityContext,omitempty"`
 }
 
 // ArchiveSpec defines the desired state of Archive.
