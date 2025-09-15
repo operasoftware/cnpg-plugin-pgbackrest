@@ -82,6 +82,10 @@ linters:
           - revive
         text: should not use dot imports
         source: ginkgo|gomega
+      # Allow packages like helpers or utils.
+      - linters:
+          - revive
+        text: avoid meaningless package names
       # Exclude some linters from running on tests files.
       - linters:
           - goconst
