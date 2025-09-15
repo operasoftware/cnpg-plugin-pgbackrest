@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.2.1...v0.3.0) (2025-09-15)
+
+
+### Features
+
+* Add configurable `SecurityContext` to `InstanceSidecarConfiguration` ([e5aa70c](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/e5aa70cc9637d0cc76dada825c3642d991fa89b5))
+
 ## [0.2.1](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.2.0...v0.2.1) (2025-06-02)
 
 
