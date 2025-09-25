@@ -106,7 +106,7 @@ func Start(ctx context.Context) error {
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: viper.GetString("health-probe-bind-address"),
 		LeaderElection:         viper.GetBool("leader-elect"),
-		LeaderElectionID:       "822e3f5c.cnpg.io",
+		LeaderElectionID:       "5e3f9a6c.cnpg.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
