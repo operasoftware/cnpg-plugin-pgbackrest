@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.3.0...v0.3.1) (2025-09-30)
+
+
+### Bug Fixes
+
+* Conflicting leaderElectionId between backup plugins ([e7e9a99](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/e7e9a99846a2c0b25541938ff9169bcb5ddc23e7))
+
 ## [0.3.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.2.1...v0.3.0) (2025-09-15)
 
 
