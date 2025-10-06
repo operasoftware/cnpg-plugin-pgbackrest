@@ -35,10 +35,16 @@ const (
 	archiveName        = "source"
 	dstBackupName      = "restore"
 	restoreClusterName = "restore"
+	pitrClusterName    = "pitr-restore"
 )
 
 type testCaseFactory interface {
 	createBackupRestoreTestResources(namespace string) backupRestoreTestResources
+}
+
+type pitrTestCaseFactory interface {
+	testCaseFactory
+	createPITRCluster(namespace string, targetTime string) *cloudnativepgv1.Cluster
 }
 
 type backupRestoreTestResources struct {
@@ -51,6 +57,10 @@ type backupRestoreTestResources struct {
 }
 
 type s3BackupPluginBackupPluginRestore struct{}
+
+type s3BackupPluginTargetTimeRestore struct {
+	s3BackupPluginBackupPluginRestore
+}
 
 func (s s3BackupPluginBackupPluginRestore) createBackupRestoreTestResources(
 	namespace string,
@@ -65,6 +75,64 @@ func (s s3BackupPluginBackupPluginRestore) createBackupRestoreTestResources(
 	result.DstBackup = newDstPluginBackup(namespace)
 
 	return result
+}
+
+func (s s3BackupPluginTargetTimeRestore) createPITRCluster(
+	namespace string,
+	targetTime string,
+) *cloudnativepgv1.Cluster {
+	cluster := &cloudnativepgv1.Cluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Cluster",
+			APIVersion: "postgresql.cnpg.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pitrClusterName,
+			Namespace: namespace,
+		},
+		Spec: cloudnativepgv1.ClusterSpec{
+			Instances:       2,
+			ImagePullPolicy: corev1.PullAlways,
+			Bootstrap: &cloudnativepgv1.BootstrapConfiguration{
+				Recovery: &cloudnativepgv1.BootstrapRecovery{
+					Source: "source",
+					RecoveryTarget: &cloudnativepgv1.RecoveryTarget{
+						TargetTime: targetTime,
+					},
+				},
+			},
+			Plugins: []cloudnativepgv1.PluginConfiguration{
+				{
+					Name: "pgbackrest.cnpg.opera.com",
+					Parameters: map[string]string{
+						"pgbackrestObjectName": archiveName,
+					},
+				},
+			},
+			PostgresConfiguration: cloudnativepgv1.PostgresConfiguration{
+				Parameters: map[string]string{
+					"log_min_messages": "DEBUG4",
+				},
+			},
+			ExternalClusters: []cloudnativepgv1.ExternalCluster{
+				{
+					Name: "source",
+					PluginConfiguration: &cloudnativepgv1.PluginConfiguration{
+						Name: "pgbackrest.cnpg.opera.com",
+						Parameters: map[string]string{
+							"pgbackrestObjectName": archiveName,
+							"stanza":               srcClusterName,
+						},
+					},
+				},
+			},
+			StorageConfiguration: cloudnativepgv1.StorageConfiguration{
+				Size: size,
+			},
+		},
+	}
+
+	return cluster
 }
 
 func newSrcPluginBackup(namespace string) *cloudnativepgv1.Backup {
