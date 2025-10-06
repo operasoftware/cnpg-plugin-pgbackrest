@@ -19,6 +19,7 @@ package backup
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	v1 "github.com/cloudnative-pg/api/pkg/api/v1"
@@ -175,6 +176,203 @@ var _ = Describe("Backup and restore", func() {
 		Entry(
 			"using the plugin for backup and restore on S3",
 			&s3BackupPluginBackupPluginRestore{},
+		),
+	)
+
+	DescribeTable("should perform point-in-time recovery",
+		func(
+			ctx SpecContext,
+			factory pitrTestCaseFactory,
+		) {
+			testResources := factory.createBackupRestoreTestResources(namespace.Name)
+
+			By("starting the object store deployment")
+			Expect(testResources.ObjectStoreResources.Create(ctx, cl)).To(Succeed())
+
+			By("creating the Archive")
+			Expect(cl.Create(ctx, testResources.Archive)).To(Succeed())
+
+			By("creating a CloudNativePG cluster")
+			src := testResources.SrcCluster
+			Expect(cl.Create(ctx, testResources.SrcCluster)).To(Succeed())
+
+			By("having the cluster ready")
+			Eventually(func(g Gomega) {
+				g.Expect(cl.Get(
+					ctx,
+					types.NamespacedName{
+						Name:      src.Name,
+						Namespace: src.Namespace,
+					},
+					src)).To(Succeed())
+				g.Expect(internalCluster.IsReady(*src)).To(BeTrue())
+			}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+
+			By("adding initial data to PostgreSQL")
+			clientSet, cfg, err := internalClient.NewClientSet()
+			Expect(err).NotTo(HaveOccurred())
+			_, _, err = command.ExecuteInContainer(ctx,
+				*clientSet,
+				cfg,
+				command.ContainerLocator{
+					NamespaceName: src.Namespace,
+					PodName:       fmt.Sprintf("%v-1", src.Name),
+					ContainerName: "postgres",
+				},
+				nil,
+				[]string{"psql", "-tAc", "CREATE TABLE pitr_test (id int, data text, created_at timestamp DEFAULT now());"})
+			Expect(err).NotTo(HaveOccurred())
+
+			_, _, err = command.ExecuteInContainer(ctx,
+				*clientSet,
+				cfg,
+				command.ContainerLocator{
+					NamespaceName: src.Namespace,
+					PodName:       fmt.Sprintf("%v-1", src.Name),
+					ContainerName: "postgres",
+				},
+				nil,
+				[]string{"psql", "-tAc", "INSERT INTO pitr_test (id, data) VALUES (1, 'before_backup');"})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating a backup")
+			backup := testResources.SrcBackup
+			Expect(cl.Create(ctx, backup)).To(Succeed())
+
+			By("waiting for the backup to complete")
+			Eventually(func(g Gomega) {
+				g.Expect(cl.Get(ctx, types.NamespacedName{Name: backup.Name, Namespace: backup.Namespace},
+					backup)).To(Succeed())
+				g.Expect(backup.Status.Phase).To(BeEquivalentTo(v1.BackupPhaseCompleted))
+			}).Within(2 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
+
+			_, _, err = command.ExecuteInContainer(ctx,
+				*clientSet,
+				cfg,
+				command.ContainerLocator{
+					NamespaceName: src.Namespace,
+					PodName:       fmt.Sprintf("%v-1", src.Name),
+					ContainerName: "postgres",
+				},
+				nil,
+				[]string{"psql", "-tAc", "INSERT INTO pitr_test (id, data) VALUES (2, 'after_backup');"})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("recording timestamp for PITR target after adding more data")
+			time.Sleep(2 * time.Second) // Ensure timestamp difference
+
+			// Record a timestamp for PITR target
+			output, _, err := command.ExecuteInContainer(ctx,
+				*clientSet,
+				cfg,
+				command.ContainerLocator{
+					NamespaceName: src.Namespace,
+					PodName:       fmt.Sprintf("%v-1", src.Name),
+					ContainerName: "postgres",
+				},
+				nil,
+				[]string{"psql", "-tAc", "SELECT now()::text;"})
+			Expect(err).NotTo(HaveOccurred())
+			pitrTargetTime := strings.TrimSpace(output)
+
+			By("adding final data that should not appear in PITR restore")
+			_, _, err = command.ExecuteInContainer(ctx,
+				*clientSet,
+				cfg,
+				command.ContainerLocator{
+					NamespaceName: src.Namespace,
+					PodName:       fmt.Sprintf("%v-1", src.Name),
+					ContainerName: "postgres",
+				},
+				nil,
+				[]string{"psql", "-tAc", "INSERT INTO pitr_test (id, data) VALUES (3, 'should_not_appear_in_pitr');"})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("forcing WAL switch to ensure data is archived")
+			_, _, err = command.ExecuteInContainer(ctx,
+				*clientSet,
+				cfg,
+				command.ContainerLocator{
+					NamespaceName: src.Namespace,
+					PodName:       fmt.Sprintf("%v-1", src.Name),
+					ContainerName: "postgres",
+				},
+				nil,
+				[]string{"psql", "-tAc", "SELECT pg_switch_wal();"})
+			Expect(err).NotTo(HaveOccurred())
+
+			time.Sleep(5 * time.Second)
+
+			By("performing point-in-time recovery to specific timestamp")
+			pitrCluster := factory.createPITRCluster(namespace.Name, pitrTargetTime)
+			Expect(cl.Create(ctx, pitrCluster)).To(Succeed())
+
+			By("having the PITR cluster ready")
+			Eventually(func(g Gomega) {
+				g.Expect(cl.Get(ctx,
+					types.NamespacedName{Name: pitrCluster.Name, Namespace: pitrCluster.Namespace},
+					pitrCluster)).To(Succeed())
+				g.Expect(internalCluster.IsReady(*pitrCluster)).To(BeTrue())
+			}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+
+			By("verifying PITR recovered to correct point in time")
+
+			output, _, err = command.ExecuteInContainer(ctx,
+				*clientSet,
+				cfg,
+				command.ContainerLocator{
+					NamespaceName: pitrCluster.Namespace,
+					PodName:       fmt.Sprintf("%v-1", pitrCluster.Name),
+					ContainerName: "postgres",
+				},
+				nil,
+				[]string{"psql", "-tAc", "SELECT COUNT(*) FROM pitr_test WHERE data = 'before_backup';"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(strings.TrimSpace(output)).To(Equal("1"), "Should have initial data from before backup")
+
+			output, _, err = command.ExecuteInContainer(ctx,
+				*clientSet,
+				cfg,
+				command.ContainerLocator{
+					NamespaceName: pitrCluster.Namespace,
+					PodName:       fmt.Sprintf("%v-1", pitrCluster.Name),
+					ContainerName: "postgres",
+				},
+				nil,
+				[]string{"psql", "-tAc", "SELECT COUNT(*) FROM pitr_test WHERE data = 'after_backup';"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(strings.TrimSpace(output)).To(Equal("1"), "Should have data added after backup")
+
+			output, _, err = command.ExecuteInContainer(ctx,
+				*clientSet,
+				cfg,
+				command.ContainerLocator{
+					NamespaceName: pitrCluster.Namespace,
+					PodName:       fmt.Sprintf("%v-1", pitrCluster.Name),
+					ContainerName: "postgres",
+				},
+				nil,
+				[]string{"psql", "-tAc", "SELECT COUNT(*) FROM pitr_test WHERE data = 'should_not_appear_in_pitr';"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(strings.TrimSpace(output)).To(Equal("0"), "Should NOT have data after PITR target time")
+
+			By("verifying total record count matches expected PITR state")
+			output, _, err = command.ExecuteInContainer(ctx,
+				*clientSet,
+				cfg,
+				command.ContainerLocator{
+					NamespaceName: pitrCluster.Namespace,
+					PodName:       fmt.Sprintf("%v-1", pitrCluster.Name),
+					ContainerName: "postgres",
+				},
+				nil,
+				[]string{"psql", "-tAc", "SELECT COUNT(*) FROM pitr_test;"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(strings.TrimSpace(output)).To(Equal("2"), "Should have exactly 2 records in PITR restore (1 before backup + 1 after backup)")
+		},
+		Entry(
+			"using TargetTime with plugin",
+			&s3BackupPluginTargetTimeRestore{},
 		),
 	)
 })
