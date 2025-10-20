@@ -253,6 +253,11 @@ spec:
                               - key
                               - name
                               type: object
+                            keyType:
+                              default: shared
+                              description: KeyType specifies the type of key used
+                                for S3 credentials
+                              type: string
                             region:
                               description: |-
                                 The reference to the secret containing the region name.
