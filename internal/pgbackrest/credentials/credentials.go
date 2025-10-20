@@ -138,37 +138,42 @@ func envSetAWSCredentials(
 		return nil, fmt.Errorf("missing S3 credentials")
 	}
 
-	// Get access key ID
-	if s3credentials.AccessKeyIDReference == nil {
-		return nil, fmt.Errorf("missing access key ID")
-	}
-	accessKeyID, accessKeyErr := extractValueFromSecret(
-		ctx,
-		client,
-		s3credentials.AccessKeyIDReference,
-		namespace,
-	)
-	if accessKeyErr != nil {
-		return nil, accessKeyErr
+	// only check for AWS credential secrets if the key type is shared
+	if s3credentials.KeyType == pgbackrestApi.KeyTypeShared {
+		// Get access key ID
+		if s3credentials.AccessKeyIDReference == nil {
+			return nil, fmt.Errorf("missing access key ID")
+		}
+		accessKeyID, accessKeyErr := extractValueFromSecret(
+			ctx,
+			client,
+			s3credentials.AccessKeyIDReference,
+			namespace,
+		)
+		if accessKeyErr != nil {
+			return nil, accessKeyErr
+		}
+
+		// Get secret access key
+		if s3credentials.SecretAccessKeyReference == nil {
+			return nil, fmt.Errorf("missing secret access key")
+		}
+		secretAccessKey, secretAccessErr := extractValueFromSecret(
+			ctx,
+			client,
+			s3credentials.SecretAccessKeyReference,
+			namespace,
+		)
+		if secretAccessErr != nil {
+			return nil, secretAccessErr
+		}
+
+		env = append(env, utils.FormatRepoEnv(repoIndex, "S3_KEY", string(accessKeyID)))
+		env = append(env, utils.FormatRepoEnv(repoIndex, "S3_KEY_SECRET", string(secretAccessKey)))
 	}
 
-	// Get secret access key
-	if s3credentials.SecretAccessKeyReference == nil {
-		return nil, fmt.Errorf("missing secret access key")
-	}
-	secretAccessKey, secretAccessErr := extractValueFromSecret(
-		ctx,
-		client,
-		s3credentials.SecretAccessKeyReference,
-		namespace,
-	)
-	if secretAccessErr != nil {
-		return nil, secretAccessErr
-	}
-
+	env = append(env, utils.FormatRepoEnv(repoIndex, "S3_KEY_TYPE", string(s3credentials.KeyType)))
 	env = append(env, utils.FormatRepoEnv(repoIndex, "S3_REGION", s3credentials.Region))
-	env = append(env, utils.FormatRepoEnv(repoIndex, "S3_KEY", string(accessKeyID)))
-	env = append(env, utils.FormatRepoEnv(repoIndex, "S3_KEY_SECRET", string(secretAccessKey)))
 
 	return env, nil
 }

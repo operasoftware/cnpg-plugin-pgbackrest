@@ -59,6 +59,18 @@ const (
 	CompressionTypeZstd = CompressionType("zst")
 )
 
+// KeyType is the type of key used for S3 credentials
+type KeyType string
+
+const (
+	// KeyTypeShared Shared keys
+	KeyTypeShared = KeyType("shared")
+	// KeyTypeAuto Automatically retrieve temporary credentials
+	KeyTypeAuto = KeyType("auto")
+	// KeyTypeWebID Automatically retrieve web identity credentials
+	KeyTypeWebID = KeyType("web-id")
+)
+
 // S3Credentials is the type for the credentials to be used to upload
 // files to S3. It can be provided in two alternative ways:
 //
@@ -66,6 +78,11 @@ const (
 //
 // - inheriting the role from the pod environment by setting inheritFromIAMRole to true
 type S3Credentials struct {
+	// KeyType specifies the type of key used for S3 credentials
+	// +optional
+	// +kubebuilder:default:=shared
+	KeyType KeyType `json:"keyType,omitempty"`
+
 	// The reference to the access key ID
 	// +optional
 	AccessKeyIDReference *machineryapi.SecretKeySelector `json:"accessKeyId,omitempty"`
