@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.3.1...v0.4.0) (2025-10-25)
+
+
+### Features
+
+* Support multiple AWS key types ([27540db](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/27540db9cd43c0529b3bb8ca92f0458427492696))
+
 ## [0.3.1](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.3.0...v0.3.1) (2025-09-30)
 
 
