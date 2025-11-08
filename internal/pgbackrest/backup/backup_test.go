@@ -85,7 +85,7 @@ var _ = Describe("GetPgbackrestBackupOptions", func() {
 			To(ContainSubstring(" --annotation foo=bar "))
 	})
 
-	It("should include backup retention", func(ctx SpecContext) {
+	It("should include Full backup retention", func(ctx SpecContext) {
 		backupConfig := cnpgApiV1.BackupPluginConfiguration{Name: metadata.PluginName, Parameters: map[string]string{"type": "full"}}
 		retention := pgbackrestApi.PgbackrestRetention{
 			Full:     28,
@@ -103,6 +103,45 @@ var _ = Describe("GetPgbackrestBackupOptions", func() {
 					ContainSubstring(" --repo1-retention-full 28 "),
 					ContainSubstring(" --repo1-retention-full-type time "),
 				),
+			)
+	})
+
+	It("should include Archive backup retention", func(ctx SpecContext) {
+		backupConfig := cnpgApiV1.BackupPluginConfiguration{Name: metadata.PluginName, Parameters: map[string]string{"type": "full"}}
+		retention := pgbackrestApi.PgbackrestRetention{
+			Archive:     10,
+			ArchiveType: "time",
+		}
+		pluginConfig.Repositories[0].Retention = &retention
+		command := NewBackupCommand(pluginConfig, &backupConfig, pgDataDir)
+
+		options, err := command.GetPgbackrestBackupOptions(ctx, backupName, stanza)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).
+			To(
+				And(
+					ContainSubstring(" --repo1-retention-archive 10 "),
+					ContainSubstring(" --repo1-retention-archive-type time "),
+				),
+			)
+	})
+
+	It("should include History retention", func(ctx SpecContext) {
+		backupConfig := cnpgApiV1.BackupPluginConfiguration{Name: metadata.PluginName, Parameters: map[string]string{"type": "full"}}
+		var hist int32 = 9
+		retention := pgbackrestApi.PgbackrestRetention{
+			History: &hist,
+		}
+		pluginConfig.Repositories[0].Retention = &retention
+		command := NewBackupCommand(pluginConfig, &backupConfig, pgDataDir)
+
+		options, err := command.GetPgbackrestBackupOptions(ctx, backupName, stanza)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).
+			To(
+				ContainSubstring(" --repo1-retention-history 9"),
 			)
 	})
 })

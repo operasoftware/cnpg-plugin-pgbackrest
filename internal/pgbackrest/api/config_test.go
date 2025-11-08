@@ -158,3 +158,21 @@ var _ = Describe("Pgbackrest credentials", func() {
 		}.ArePopulated()).To(BeTrue())
 	})
 })
+
+var _ = Describe("Pgbackrest retention", func() {
+	var history int32 = 9
+
+	It("can check when policy is partially populated", func() {
+		policy1 := PgbackrestRetention{
+			Archive: 7,
+		}
+		policy2 := PgbackrestRetention{
+			History: &history,
+		}
+
+		Expect(policy1.History == nil).To(BeTrue())
+
+		Expect(policy2.History).To(Not(BeNil()))
+		Expect(*policy2.History).To(Equal(history))
+	})
+})

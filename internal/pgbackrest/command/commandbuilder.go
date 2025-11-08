@@ -20,6 +20,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
@@ -140,7 +141,10 @@ func appendRetentionOptions(
 		options = append(
 			options,
 			utils.FormatRepoFlag(repoIndex, "retention-history"),
-			string(*retention.History))
+
+			// Simple string(*retention.History)) won't work below
+			// Keep in mind it's a pointer. Explicit cast and format calls are necessary
+			strconv.FormatInt(int64(*retention.History), 10))
 	}
 
 	return options, nil
