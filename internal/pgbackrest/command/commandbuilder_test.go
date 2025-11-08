@@ -63,3 +63,41 @@ var _ = Describe("pgbackrestWalRestoreOptions", func() {
 				))
 	})
 })
+
+var _ = Describe("PgbackrestRetention", func() {
+	var config *pgbackrestApi.PgbackrestConfiguration
+	var history int32 = 8
+	retention := pgbackrestApi.PgbackrestRetention{
+		Archive:     5,
+		ArchiveType: "full",
+		Full:        6,
+		FullType:    "count",
+		Diff:        7,
+		History:     &history,
+	}
+	BeforeEach(func() {
+		config = &pgbackrestApi.PgbackrestConfiguration{
+			Repositories: []pgbackrestApi.PgbackrestRepository{
+				{
+					Retention: &retention,
+				},
+			},
+		}
+	})
+
+	It("should generate correct argument list for retention policy", func(ctx SpecContext) {
+		var empty []string
+		options, err := AppendRetentionOptionsFromConfiguration(ctx, empty, config)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).
+			To(
+				And(
+					ContainSubstring("--repo1-retention-archive-type full"),
+					ContainSubstring("--repo1-retention-full-type count"),
+					ContainSubstring("--repo1-retention-archive 5"),
+					ContainSubstring("--repo1-retention-full 6"),
+					ContainSubstring("--repo1-retention-diff 7"),
+					ContainSubstring("--repo1-retention-history 8"),
+				))
+	})
+})
