@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.4.0...v0.4.1) (2025-11-13)
+
+
+### Bug Fixes
+
+* Parsing PgbackrestRetention.History ([#43](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/43)) ([5dd340d](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/5dd340dab0e520a7cffd3460c5d3c845b4ce61df))
+
 ## [0.4.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.3.1...v0.4.0) (2025-10-25)
 
 
