@@ -34,6 +34,7 @@ import (
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/kustomize"
 
 	_ "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/tests/backup"
+	_ "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/tests/parallelarchive"
 	_ "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/tests/replicacluster"
 
 	. "github.com/onsi/ginkgo/v2"

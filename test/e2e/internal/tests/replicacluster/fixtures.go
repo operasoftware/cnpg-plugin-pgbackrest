@@ -60,11 +60,11 @@ func (f s3ReplicaClusterFactory) createReplicaClusterTestResources(namespace str
 	result := replicaClusterTestResources{}
 
 	result.SrcObjectStoreResources = objectstore.NewMinioObjectStoreResources(namespace, minioSrc)
-	result.SrcArchive = objectstore.NewMinioArchive(namespace, srcArchiveName, minioSrc)
+	result.SrcArchive = objectstore.NewMinioArchive(namespace, srcArchiveName, minioSrc, 1)
 	result.SrcCluster = newSrcCluster(namespace)
 	result.SrcBackup = newSrcBackup(namespace)
 	result.ReplicaObjectStoreResources = objectstore.NewMinioObjectStoreResources(namespace, minioReplica)
-	result.ReplicaArchive = objectstore.NewMinioArchive(namespace, replicaArchiveName, minioReplica)
+	result.ReplicaArchive = objectstore.NewMinioArchive(namespace, replicaArchiveName, minioReplica, 1)
 	result.ReplicaCluster = newReplicaCluster(namespace)
 	result.ReplicaBackup = newReplicaBackup(namespace)
 
