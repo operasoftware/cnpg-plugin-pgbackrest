@@ -68,7 +68,7 @@ func (s s3BackupPluginBackupPluginRestore) createBackupRestoreTestResources(
 	result := backupRestoreTestResources{}
 
 	result.ObjectStoreResources = objectstore.NewMinioObjectStoreResources(namespace, minio)
-	result.Archive = objectstore.NewMinioArchive(namespace, archiveName, minio)
+	result.Archive = objectstore.NewMinioArchive(namespace, archiveName, minio, 1)
 	result.SrcCluster = newSrcClusterWithPlugin(namespace)
 	result.SrcBackup = newSrcPluginBackup(namespace)
 	result.DstCluster = newDstClusterWithPlugin(namespace)

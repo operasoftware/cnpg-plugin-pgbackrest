@@ -136,12 +136,39 @@ func (w WALServiceImplementation) Archive(
 	if err != nil {
 		return nil, err
 	}
-	walList := arch.GatherWALFilesToArchive(ctx, request.GetSourceFileName(), 1)
+
+	maxParallel := 1
+	if archive.Spec.Configuration.Wal != nil && archive.Spec.Configuration.Wal.MaxParallel > 1 {
+		maxParallel = archive.Spec.Configuration.Wal.MaxParallel
+	}
+
+	walList := arch.GatherWALFilesToArchive(ctx, request.GetSourceFileName(), maxParallel)
+
+	// Log the batch of WAL files prepared for archiving
+	contextLogger.Info("WAL archive batch prepared",
+		"requestedWalFile", request.GetSourceFileName(),
+		"maxParallel", maxParallel,
+		"walFiles", walList)
+
 	result := arch.ArchiveList(ctx, walList, options)
+	successfulArchives := 0
+	var lastErr error
 	for _, archiverResult := range result {
-		if archiverResult.Err != nil {
-			return nil, archiverResult.Err
+		if archiverResult.Err == nil {
+			successfulArchives++
+		} else {
+			lastErr = archiverResult.Err
 		}
+	}
+
+	contextLogger.Info("WAL archive batch completed",
+		"requestedWalFile", request.GetSourceFileName(),
+		"maxParallel", maxParallel,
+		"successfulArchives", successfulArchives,
+		"failedArchives", len(walList)-successfulArchives)
+
+	if lastErr != nil {
+		return nil, lastErr
 	}
 
 	return &wal.WALArchiveResult{}, nil

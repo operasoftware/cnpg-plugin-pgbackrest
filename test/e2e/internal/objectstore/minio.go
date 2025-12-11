@@ -300,7 +300,7 @@ func newMinioPVC(namespace, name string) *corev1.PersistentVolumeClaim {
 }
 
 // NewMinioArchive creates a new Archive configured to use the Minio object store.
-func NewMinioArchive(namespace, name, minioOSName string) *pluginPgbackrestV1.Archive {
+func NewMinioArchive(namespace, name, minioOSName string, maxParallel int) *pluginPgbackrestV1.Archive {
 	return &pluginPgbackrestV1.Archive{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Archive",
@@ -312,6 +312,9 @@ func NewMinioArchive(namespace, name, minioOSName string) *pluginPgbackrestV1.Ar
 		},
 		Spec: pluginPgbackrestV1.ArchiveSpec{
 			Configuration: pgbackrestApi.PgbackrestConfiguration{
+				Wal: &pgbackrestApi.WalBackupConfiguration{
+					MaxParallel: maxParallel,
+				},
 				Repositories: []pgbackrestApi.PgbackrestRepository{
 					{
 						PgbackrestCredentials: pgbackrestApi.PgbackrestCredentials{
