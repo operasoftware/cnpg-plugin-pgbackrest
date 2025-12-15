@@ -16,7 +16,7 @@ const (
 // Data is the metadata of this plugin.
 var Data = identity.GetPluginMetadataResponse{
 	Name:          PluginName,
-	Version:       "0.4.1", // x-release-please-version
+	Version:       "0.5.0", // x-release-please-version
 	DisplayName:   "pgBackRestInstance",
 	ProjectUrl:    "https://github.com/operasoftware/cnpg-plugin-pgbackrest",
 	RepositoryUrl: "https://github.com/operasoftware/cnpg-plugin-pgbackrest",
