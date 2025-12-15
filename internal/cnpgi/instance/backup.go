@@ -75,7 +75,7 @@ func (b BackupServiceImplementation) Backup(
 
 	contextLogger.Info("Starting backup")
 
-	backupConfig, err := decoder.DecodeBackup(request.BackupDefinition)
+	backupConfig, err := decoder.DecodeBackupLenient(request.BackupDefinition)
 	if err != nil {
 		contextLogger.Error(err, "while getting backup definition")
 		return nil, err
