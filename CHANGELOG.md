@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.4.1...v0.5.0) (2025-12-15)
+
+
+### Features
+
+* Parallel WAL upload ([#45](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/45)) ([23d7807](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/23d7807a7ec8c9cdc01ca7c03a439a120a1a8b09))
+
 ## [0.4.1](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.4.0...v0.4.1) (2025-11-13)
 
 
