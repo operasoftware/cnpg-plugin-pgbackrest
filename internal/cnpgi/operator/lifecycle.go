@@ -96,10 +96,9 @@ func (impl LifecycleImplementation) LifecycleHook(
 	}
 
 	var cluster cnpgv1.Cluster
-	if err := decoder.DecodeObject(
+	if err := decoder.DecodeObjectLenient(
 		request.GetClusterDefinition(),
 		&cluster,
-		cnpgv1.GroupVersion.WithKind("Cluster"),
 	); err != nil {
 		return nil, err
 	}
@@ -258,7 +257,7 @@ func reconcileJob(
 	}
 
 	var job batchv1.Job
-	if err := decoder.DecodeObject(
+	if err := decoder.DecodeObjectStrict(
 		request.GetObjectDefinition(),
 		&job,
 		batchv1.SchemeGroupVersion.WithKind("Job"),

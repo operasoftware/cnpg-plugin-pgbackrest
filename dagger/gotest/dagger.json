@@ -1,6 +1,8 @@
 {
   "name": "gotest",
-  "engineVersion": "v0.15.2",
-  "sdk": "go",
-  "source": "."
+  "engineVersion": "v0.19.8",
+  "sdk": {
+    "source": "go"
+  },
+  "disableDefaultFunctionCaching": true
 }

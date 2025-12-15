@@ -78,10 +78,9 @@ func (r ReconcilerImplementation) Pre(
 
 	contextLogger.Debug("parsing cluster definition")
 	var cluster cnpgv1.Cluster
-	if err := decoder.DecodeObject(
+	if err := decoder.DecodeObjectLenient(
 		request.GetResourceDefinition(),
-		&cluster,
-		cnpgv1.GroupVersion.WithKind("Cluster")); err != nil {
+		&cluster); err != nil {
 		return nil, err
 	}
 

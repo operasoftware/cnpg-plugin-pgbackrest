@@ -1,6 +1,6 @@
 {
   "name": "e2e",
-  "engineVersion": "v0.18.5",
+  "engineVersion": "v0.19.8",
   "sdk": {
     "source": "go"
   },
@@ -12,8 +12,9 @@
     },
     {
       "name": "k3s",
-      "source": "github.com/marcosnils/daggerverse/k3s@k3s/v0.1.10",
-      "pin": "28eea1fcf3b6ecb38a628186107760acd717442f"
+      "source": "github.com/marcosnils/daggerverse/k3s@k3s/v0.11.0",
+      "pin": "2bdcdc63376e82e395f415454a07fcc5a0d3e518"
     }
-  ]
+  ],
+  "disableDefaultFunctionCaching": true
 }
