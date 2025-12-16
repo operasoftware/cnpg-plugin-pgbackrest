@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.5.0...v0.5.1) (2025-12-16)
+
+
+### Bug Fixes
+
+* Always use absolute paths for WAL upload ([#45](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/45)) ([d98d3ec](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/d98d3ecaecdc56e1414a75b2928cecf00e0e3f4a))
+
 ## [0.5.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.4.1...v0.5.0) (2025-12-15)
 
 
