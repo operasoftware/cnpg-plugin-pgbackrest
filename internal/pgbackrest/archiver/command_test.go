@@ -111,87 +111,101 @@ var _ = Describe("GatherWALFilesToArchive", func() {
 		os.Unsetenv("PGDATA")
 	})
 
-	// Helper function to create .ready files
-	createReadyFile := func(walName string) {
+	// Helper function to create .ready files and return the absolute path to the file.
+	// Pgbackrest preffers absolute paths for uploaded files. For relative ones
+	// additional flags must be passed and Postgres config must match those flags.
+	// For some reason it doesn't so we ensure only absolute paths are returned.
+	createReadyFile := func(walName string) string {
 		path := filepath.Join(archiveStatusDir, walName+".ready")
 		err := os.WriteFile(path, []byte{}, 0644)
 		Expect(err).ToNot(HaveOccurred())
+		return filepath.Join(tempPgData, "pg_wal", walName)
 	}
 
 	Context("when parallel=1", func() {
 		It("should gather only the requested file", func(ctx SpecContext) {
 			// Create .ready files for multiple WAL files
-			createReadyFile("000000010000000000000001")
+			wal1 := createReadyFile("000000010000000000000001")
 			createReadyFile("000000010000000000000002")
 			createReadyFile("000000010000000000000003")
 
 			walList := archiver.GatherWALFilesToArchive(ctx, "pg_wal/000000010000000000000001", 1)
 
-			Expect(walList).To(ConsistOf("pg_wal/000000010000000000000001"))
+			Expect(walList).To(ConsistOf(wal1))
+		})
+
+		It("should handle an absolute path as input", func(ctx SpecContext) {
+			// Create .ready files for multiple WAL files
+			wal1 := createReadyFile("000000010000000000000001")
+			createReadyFile("000000010000000000000002")
+			createReadyFile("000000010000000000000003")
+
+			walList := archiver.GatherWALFilesToArchive(ctx, filepath.Join(tempPgData, "pg_wal", "000000010000000000000001"), 1)
+
+			Expect(walList).To(ConsistOf(wal1))
 		})
 
 		It("should handle when no other .ready files exist", func(ctx SpecContext) {
 			// Only create the requested file
-			createReadyFile("000000010000000000000001")
+			wal1 := createReadyFile("000000010000000000000001")
 
 			walList := archiver.GatherWALFilesToArchive(ctx, "pg_wal/000000010000000000000001", 1)
 
-			Expect(walList).To(ConsistOf("pg_wal/000000010000000000000001"))
+			Expect(walList).To(ConsistOf(wal1))
 		})
 	})
 
 	Context("when parallel>1", func() {
 		It("should gather multiple files when parallel=4", func(ctx SpecContext) {
 			// Create .ready files for multiple WAL files
-			createReadyFile("000000010000000000000001")
-			createReadyFile("000000010000000000000002")
-			createReadyFile("000000010000000000000003")
-			createReadyFile("000000010000000000000004")
+			walFiles := []any{
+				createReadyFile("000000010000000000000001"),
+				createReadyFile("000000010000000000000002"),
+				createReadyFile("000000010000000000000003"),
+				createReadyFile("000000010000000000000004"),
+			}
 
 			walList := archiver.GatherWALFilesToArchive(ctx, "pg_wal/000000010000000000000001", 4)
 
-			Expect(walList).To(ConsistOf(
-				"pg_wal/000000010000000000000001",
-				"pg_wal/000000010000000000000002",
-				"pg_wal/000000010000000000000003",
-				"pg_wal/000000010000000000000004",
-			))
+			Expect(walList).To(ConsistOf(walFiles...))
 		})
 
 		It("should not exceed parallel limit even when more files are ready", func(ctx SpecContext) {
+			requested := createReadyFile("000000010000000000000001")
 			// Create many .ready files
-			for i := 1; i <= 10; i++ {
+			for i := 2; i <= 10; i++ {
 				createReadyFile("00000001000000000000000" + string(rune('0'+i)))
 			}
 
 			walList := archiver.GatherWALFilesToArchive(ctx, "pg_wal/000000010000000000000001", 3)
 
 			Expect(walList).To(HaveLen(3))
+			Expect(walList).To(ContainElement(requested))
 		})
 
 		It("should handle when fewer files exist than parallel limit", func(ctx SpecContext) {
 			// Create only 2 .ready files but request parallel=5
-			createReadyFile("000000010000000000000001")
-			createReadyFile("000000010000000000000002")
+			walFiles := []any{
+				createReadyFile("000000010000000000000001"),
+				createReadyFile("000000010000000000000002"),
+			}
 
 			walList := archiver.GatherWALFilesToArchive(ctx, "pg_wal/000000010000000000000001", 5)
 
 			// Should only get the files that exist
-			Expect(walList).To(ConsistOf(
-				"pg_wal/000000010000000000000001",
-				"pg_wal/000000010000000000000002",
-			))
+			Expect(walList).To(ConsistOf(walFiles...))
 		})
 	})
 
 	Context("edge cases", func() {
 		It("should handle empty archive_status directory", func(ctx SpecContext) {
 			// Don't create any .ready files
+			expectedWal := filepath.Join(tempPgData, "pg_wal", "000000010000000000000001")
 
 			walList := archiver.GatherWALFilesToArchive(ctx, "pg_wal/000000010000000000000001", 3)
 
 			// Should still return the requested file
-			Expect(walList).To(ConsistOf("pg_wal/000000010000000000000001"))
+			Expect(walList).To(ConsistOf(expectedWal))
 		})
 
 	})
@@ -199,8 +213,10 @@ var _ = Describe("GatherWALFilesToArchive", func() {
 	Context("other files in directory", func() {
 		It("should ignore non-.ready files in archive_status", func(ctx SpecContext) {
 			// Create .ready files
-			createReadyFile("000000010000000000000001")
-			createReadyFile("000000010000000000000002")
+			walFiles := []any{
+				createReadyFile("000000010000000000000001"),
+				createReadyFile("000000010000000000000002"),
+			}
 
 			// Create .done files (should be ignored)
 			donePath := filepath.Join(archiveStatusDir, "000000010000000000000003.done")
@@ -215,22 +231,17 @@ var _ = Describe("GatherWALFilesToArchive", func() {
 			walList := archiver.GatherWALFilesToArchive(ctx, "pg_wal/000000010000000000000001", 5)
 
 			// Should only get .ready files, not .done or other files
-			Expect(walList).To(ConsistOf(
-				"pg_wal/000000010000000000000001",
-				"pg_wal/000000010000000000000002",
-			))
+			Expect(walList).To(ConsistOf(walFiles...))
 		})
+
 		It("should handle timeline history files", func(ctx SpecContext) {
 			// Create timeline history file
-			createReadyFile("00000002.history")
-			createReadyFile("000000010000000000000001")
+			history := createReadyFile("00000002.history")
+			wal1 := createReadyFile("000000010000000000000001")
 
 			walList := archiver.GatherWALFilesToArchive(ctx, "pg_wal/00000002.history", 2)
 
-			Expect(walList).To(ConsistOf(
-				"pg_wal/00000002.history",
-				"pg_wal/000000010000000000000001",
-			))
+			Expect(walList).To(ConsistOf(history, wal1))
 		})
 	})
 })

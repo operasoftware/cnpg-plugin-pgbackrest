@@ -37,6 +37,10 @@ import (
 // `requestedWALFile` is the name of the file whose archiving was requested by
 // PostgreSQL, and that file is always the first of the list and is always included.
 // `parallel` is the maximum number of WALs that we can archive in parallel
+// It's important to ensure this method returns absolute paths. While pgbackrest can
+// work with relative ones, such setup requires additional config flags and a matching
+// Postgresql working directory configuration, which seems to be invalid in the context
+// of the plugin's container.
 func (archiver *WALArchiver) GatherWALFilesToArchive(
 	ctx context.Context,
 	requestedWALFile string,
@@ -57,7 +61,10 @@ func (archiver *WALArchiver) GatherWALFilesToArchive(
 	// slightly more optimized, but equivalent to:
 	// walList = []string{requestedWALFile}
 	walList = make([]string, 1, walListLength)
-	walList[0] = requestedWALFile
+	// Ensure it's an absolute path. While Postgres should be configured to use absolute
+	// paths in the archive command, its documentation mentions that even in this mode
+	// a relative path might be used in some cases.
+	walList[0] = filepath.Join(pgWalDirectory, filepath.Base(requestedWALFile))
 
 	err := filepath.WalkDir(archiveStatusPath, func(path string, d os.DirEntry, err error) error {
 		// If err is set, it means the current path is a directory and the readdir raised an error
@@ -96,7 +103,7 @@ func (archiver *WALArchiver) GatherWALFilesToArchive(
 			return nil
 		}
 
-		walList = append(walList, filepath.Join("pg_wal", walFileName))
+		walList = append(walList, filepath.Join(pgWalDirectory, walFileName))
 		return nil
 	})
 
