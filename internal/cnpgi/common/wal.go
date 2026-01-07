@@ -125,6 +125,17 @@ func (w WALServiceImplementation) Archive(
 		return nil, err
 	}
 
+	// Check if this WAL was already archived in a previous parallel batch
+	wasInSpool, err := arch.DeleteFromSpool(request.GetSourceFileName())
+	if err != nil {
+		return nil, err
+	}
+	if wasInSpool {
+		contextLogger.Info("WAL file already archived in previous parallel batch, returning immediately",
+			"walName", request.GetSourceFileName())
+		return &wal.WALArchiveResult{}, nil
+	}
+
 	// Check if we're ok to archive in the desired destination
 	err = arch.CheckWalArchiveDestination(ctx, &archive.Spec.Configuration, configuration.Stanza, envArchive)
 	if err != nil {
