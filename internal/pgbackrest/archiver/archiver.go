@@ -150,6 +150,7 @@ func (archiver *WALArchiver) PgbackrestCheckWalArchiveOptions(
 	configuration *pgbackrestApi.PgbackrestConfiguration,
 	clusterName string,
 ) ([]string, error) {
+	//nolint:prealloc
 	var options []string
 
 	options, err := pgbackrestCommand.AppendCloudProviderOptionsFromConfiguration(ctx, options, configuration)

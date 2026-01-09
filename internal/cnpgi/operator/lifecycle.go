@@ -375,6 +375,7 @@ func reconcilePodSpec(
 	resources *corev1.ResourceRequirements,
 	securityContext *corev1.SecurityContext,
 ) error {
+	//nolint:prealloc
 	envs := []corev1.EnvVar{
 		{
 			Name:  "NAMESPACE",

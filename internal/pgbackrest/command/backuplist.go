@@ -60,6 +60,7 @@ func executeQueryCommand(
 ) (string, error) {
 	contextLogger := log.FromContext(ctx).WithName("pgbackrest")
 
+	//nolint:prealloc
 	options := []string{"info", "--output", "json"}
 
 	options, err := AppendCloudProviderOptionsFromConfiguration(ctx, options, pgbackrestConfiguration)

@@ -178,6 +178,7 @@ func (b *Command) getStanzaCreateOptions(
 	ctx context.Context,
 	stanza string,
 ) ([]string, error) {
+	//nolint:prealloc
 	options := []string{
 		"stanza-create",
 	}
