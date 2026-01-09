@@ -37,6 +37,7 @@ type parallelArchiveTestResources struct {
 	ObjectStoreResources *objectstore.Resources
 	Archive              *pluginPgbackrestV1.Archive
 	Cluster              *cloudnativepgv1.Cluster
+	Backup               *cloudnativepgv1.Backup
 }
 
 // createParallelArchiveTestResources creates test resources for parallel archive testing
@@ -46,6 +47,7 @@ func createParallelArchiveTestResources(namespace string, maxParallel int) paral
 	resources.ObjectStoreResources = objectstore.NewMinioObjectStoreResources(namespace, minio)
 	resources.Archive = objectstore.NewMinioArchive(namespace, archiveName, minio, maxParallel)
 	resources.Cluster = createClusterWithArchive(namespace, clusterName, archiveName)
+	resources.Backup = createPluginBackup(namespace)
 
 	return resources
 }
@@ -84,4 +86,29 @@ func createClusterWithArchive(namespace, clusterName, archiveName string) *cloud
 	}
 
 	return cluster
+}
+
+// createPluginBackup creates a backup resource to initialize the pgBackRest stanza
+func createPluginBackup(namespace string) *cloudnativepgv1.Backup {
+	backup := &cloudnativepgv1.Backup{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Backup",
+			APIVersion: "postgresql.cnpg.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "plugin-backup",
+			Namespace: namespace,
+		},
+		Spec: cloudnativepgv1.BackupSpec{
+			Cluster: cloudnativepgv1.LocalObjectReference{
+				Name: clusterName,
+			},
+			Method: "plugin",
+			Target: "primary",
+			PluginConfiguration: &cloudnativepgv1.BackupPluginConfiguration{
+				Name: "pgbackrest.cnpg.opera.com",
+			},
+		},
+	}
+	return backup
 }

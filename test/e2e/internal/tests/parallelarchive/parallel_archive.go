@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	v1 "github.com/cloudnative-pg/api/pkg/api/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -79,10 +80,10 @@ var _ = Describe("Parallel WAL Archive", func() {
 			g.Expect(internalCluster.IsReady(*cluster)).To(BeTrue())
 		}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
-		By("creating initial data to generate some WAL traffic")
 		clientSet, cfg, err := internalClient.NewClientSet()
 		Expect(err).NotTo(HaveOccurred())
 
+		By("adding initial data to PostgreSQL")
 		_, _, err = command.ExecuteInContainer(ctx,
 			*clientSet,
 			cfg,
@@ -94,6 +95,17 @@ var _ = Describe("Parallel WAL Archive", func() {
 			nil,
 			[]string{"psql", "-tAc", "CREATE TABLE parallel_test (id int, data text);"})
 		Expect(err).NotTo(HaveOccurred())
+
+		By("creating a backup to initialize pgBackRest stanza")
+		backup := testResources.Backup
+		Expect(cl.Create(ctx, backup)).To(Succeed())
+
+		By("waiting for the backup to complete")
+		Eventually(func(g Gomega) {
+			g.Expect(cl.Get(ctx, types.NamespacedName{Name: backup.Name, Namespace: backup.Namespace},
+				backup)).To(Succeed())
+			g.Expect(backup.Status.Phase).To(BeEquivalentTo(v1.BackupPhaseCompleted))
+		}).Within(2 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
 
 		By("rapidly generating multiple WAL files to queue them for archiving")
 		// Generate 10 WAL switches in quick succession to create a backlog
@@ -124,7 +136,7 @@ var _ = Describe("Parallel WAL Archive", func() {
 			clientSet,
 			cluster.Namespace,
 			fmt.Sprintf("%s-1", cluster.Name),
-			"postgres",
+			"plugin-pgbackrest",
 			nil,
 		)
 		Expect(err).NotTo(HaveOccurred())
