@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.2](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.5.1...v0.5.2) (2026-01-12)
+
+
+### Bug Fixes
+
+* Parallelarchive e2e test not executed by test runner ([#59](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/59)) ([46938ae](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/46938ae74207c20e47cdcc35fb5c3bb4bf996cc4))
+* Wal archive - early return if WAL was already archived ([#45](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/45)) ([420c5db](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/420c5dbc85b191e8ac346ce56f5db08a548e478b))
+
 ## [0.5.1](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.5.0...v0.5.1) (2025-12-16)
 
 
