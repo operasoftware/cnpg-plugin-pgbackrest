@@ -11,6 +11,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
 )
 
 // DefaultTTLSeconds is the default TTL in seconds of cache entries
@@ -48,7 +50,7 @@ func (e *ExtendedClient) isObjectCached(obj client.Object) bool {
 		return true
 	}
 
-	if _, isArchive := obj.(*corev1.Secret); isArchive {
+	if _, isArchive := obj.(*pgbackrestv1.Archive); isArchive {
 		return true
 	}
 
@@ -89,7 +91,7 @@ func (e *ExtendedClient) getCachedObject(
 		if cacheEntry.entry.GetNamespace() != key.Namespace || cacheEntry.entry.GetName() != key.Name {
 			continue
 		}
-		if cacheEntry.entry.GetObjectKind().GroupVersionKind() != obj.GetObjectKind().GroupVersionKind() {
+		if reflect.TypeOf(cacheEntry.entry) != reflect.TypeOf(obj) {
 			continue
 		}
 		if cacheEntry.isExpired() {
@@ -121,6 +123,7 @@ func (e *ExtendedClient) getCachedObject(
 	cs := cachedEntry{
 		entry:         obj.(runtime.Object).DeepCopyObject().(client.Object),
 		fetchUnixTime: time.Now().Unix(),
+		ttl:           time.Duration(DefaultTTLSeconds) * time.Second,
 	}
 
 	contextLogger.Debug("setting object in the cache")
@@ -141,7 +144,7 @@ func (e *ExtendedClient) removeObject(object client.Object) {
 	for i, cache := range e.cachedObjects {
 		if cache.entry.GetNamespace() == object.GetNamespace() &&
 			cache.entry.GetName() == object.GetName() &&
-			cache.entry.GetObjectKind().GroupVersionKind() != object.GetObjectKind().GroupVersionKind() {
+			reflect.TypeOf(cache.entry) == reflect.TypeOf(object) {
 			e.cachedObjects = append(e.cachedObjects[:i], e.cachedObjects[i+1:]...)
 			return
 		}
