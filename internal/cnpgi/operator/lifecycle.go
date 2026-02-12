@@ -468,18 +468,7 @@ func InjectPluginVolumePodSpec(spec *corev1.PodSpec, mainContainerName string) {
 		pluginMountPath  = "/plugins"
 	)
 
-	foundPluginVolume := false
-	for i := range spec.Volumes {
-		if spec.Volumes[i].Name == pluginVolumeName {
-			foundPluginVolume = true
-		}
-	}
-
-	if foundPluginVolume {
-		return
-	}
-
-	spec.Volumes = append(spec.Volumes, corev1.Volume{
+	ensureVolume(spec, corev1.Volume{
 		Name: pluginVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
@@ -488,13 +477,54 @@ func InjectPluginVolumePodSpec(spec *corev1.PodSpec, mainContainerName string) {
 
 	for i := range spec.Containers {
 		if spec.Containers[i].Name == mainContainerName {
-			spec.Containers[i].VolumeMounts = append(
-				spec.Containers[i].VolumeMounts,
-				corev1.VolumeMount{
-					Name:      pluginVolumeName,
-					MountPath: pluginMountPath,
-				},
-			)
+			ensureVolumeMount(&spec.Containers[i], corev1.VolumeMount{
+				Name:      pluginVolumeName,
+				MountPath: pluginMountPath,
+			})
+		}
+	}
+}
+
+// ensureVolume ensures a volume with the given name exists in the PodSpec.
+// If a volume with that name already exists, it is replaced; otherwise, it is appended.
+func ensureVolume(spec *corev1.PodSpec, vol corev1.Volume) {
+	for i := range spec.Volumes {
+		if spec.Volumes[i].Name == vol.Name {
+			spec.Volumes[i] = vol
+			return
+		}
+	}
+	spec.Volumes = append(spec.Volumes, vol)
+}
+
+// removeVolume removes a volume by name from the PodSpec if it exists.
+func removeVolume(spec *corev1.PodSpec, name string) {
+	for i := range spec.Volumes {
+		if spec.Volumes[i].Name == name {
+			spec.Volumes = append(spec.Volumes[:i], spec.Volumes[i+1:]...)
+			return
+		}
+	}
+}
+
+// ensureVolumeMount ensures a volume mount with the given name exists in the container.
+// If a mount with that name already exists, it is replaced; otherwise, it is appended.
+func ensureVolumeMount(container *corev1.Container, mount corev1.VolumeMount) {
+	for i := range container.VolumeMounts {
+		if container.VolumeMounts[i].Name == mount.Name {
+			container.VolumeMounts[i] = mount
+			return
+		}
+	}
+	container.VolumeMounts = append(container.VolumeMounts, mount)
+}
+
+// removeVolumeMount removes a volume mount by name from the container if it exists.
+func removeVolumeMount(container *corev1.Container, name string) {
+	for i := range container.VolumeMounts {
+		if container.VolumeMounts[i].Name == name {
+			container.VolumeMounts = append(container.VolumeMounts[:i], container.VolumeMounts[i+1:]...)
+			return
 		}
 	}
 }
