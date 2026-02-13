@@ -236,12 +236,18 @@ var _ = Describe("LifecycleImplementation", func() {
 			ctx = context.Background()
 		})
 
-		It("returns nil when archive is nil", func() {
+		It("returns hardened default when archive is nil", func() {
 			result := lifecycleImpl.calculateSidecarSecurityContext(ctx, nil)
-			Expect(result).To(BeNil())
+			Expect(result).ToNot(BeNil())
+			Expect(result.AllowPrivilegeEscalation).To(Equal(ptr.To(false)))
+			Expect(result.RunAsNonRoot).To(Equal(ptr.To(true)))
+			Expect(result.ReadOnlyRootFilesystem).To(Equal(ptr.To(true)))
+			Expect(result.Privileged).To(Equal(ptr.To(false)))
+			Expect(result.SeccompProfile.Type).To(Equal(corev1.SeccompProfileTypeRuntimeDefault))
+			Expect(result.Capabilities.Drop).To(Equal([]corev1.Capability{"ALL"}))
 		})
 
-		It("returns nil when archive has no security context", func() {
+		It("returns hardened default when archive has no security context", func() {
 			archive := &pgbackrestv1.Archive{
 				Spec: pgbackrestv1.ArchiveSpec{
 					InstanceSidecarConfiguration: pgbackrestv1.InstanceSidecarConfiguration{
@@ -251,7 +257,13 @@ var _ = Describe("LifecycleImplementation", func() {
 			}
 
 			result := lifecycleImpl.calculateSidecarSecurityContext(ctx, archive)
-			Expect(result).To(BeNil())
+			Expect(result).ToNot(BeNil())
+			Expect(result.AllowPrivilegeEscalation).To(Equal(ptr.To(false)))
+			Expect(result.RunAsNonRoot).To(Equal(ptr.To(true)))
+			Expect(result.ReadOnlyRootFilesystem).To(Equal(ptr.To(true)))
+			Expect(result.Privileged).To(Equal(ptr.To(false)))
+			Expect(result.SeccompProfile.Type).To(Equal(corev1.SeccompProfileTypeRuntimeDefault))
+			Expect(result.Capabilities.Drop).To(Equal([]corev1.Capability{"ALL"}))
 		})
 
 		It("returns configured security context when present", func() {

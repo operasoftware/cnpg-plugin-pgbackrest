@@ -143,6 +143,8 @@ func (archiver *WALArchiver) PgbackrestWalArchiveOptions(
 	if err != nil {
 		return nil, err
 	}
+	// Disable file logging because sidecar containers use readOnlyRootFilesystem by default.
+	options = append(options, "--log-level-file", "off")
 
 	serverName := clusterName
 	if len(configuration.Stanza) != 0 {
