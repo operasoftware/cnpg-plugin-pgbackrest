@@ -42,6 +42,8 @@ func CloudWalRestoreOptions(
 	if err != nil {
 		return nil, err
 	}
+	// Disable file logging because sidecar containers use readOnlyRootFilesystem by default.
+	options = append(options, "--log-level-file", "off")
 
 	stanza := clusterName
 	if len(configuration.Stanza) != 0 {
@@ -241,18 +243,21 @@ func AppendLogOptionsFromConfiguration(
 }
 
 // appendLogOptions takes an options array and adds the stanza-specific pgbackrest
-// options required for all operations connecting to the database
+// options required for all operations connecting to the database.
 func appendLogOptions(
 	_ context.Context,
 	options []string,
 ) ([]string, error) {
 	// TODO: Those options likely shouldn't be hardcoded.
-	// TODO: Maybe configure log path to a writable directory?
 	options = append(
 		options,
 		"--log-level-stderr",
 		"warn",
 		"--log-level-console",
+		"off",
+		// Disable file logging because the default path (/var/log/pgbackrest/) is not
+		// writable when readOnlyRootFilesystem is enabled in the SecurityContext.
+		"--log-level-file",
 		"off",
 	)
 

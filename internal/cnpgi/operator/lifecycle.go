@@ -148,8 +148,15 @@ func (impl LifecycleImplementation) calculateSidecarSecurityContext(
 		return archive.Spec.InstanceSidecarConfiguration.SecurityContext
 	}
 
-	contextLogger.Info("Security context definition not found in the archive object, using default (no restrictions).")
-	return nil
+	contextLogger.Info("Security context definition not found in the archive object, using hardened default.")
+	return &corev1.SecurityContext{
+		AllowPrivilegeEscalation: ptr.To(false),
+		RunAsNonRoot:             ptr.To(true),
+		Privileged:               ptr.To(false),
+		ReadOnlyRootFilesystem:   ptr.To(true),
+		SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+		Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+	}
 }
 
 func (impl LifecycleImplementation) getArchives(
