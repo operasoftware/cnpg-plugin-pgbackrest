@@ -42,6 +42,7 @@ type ArchiveReconciler struct {
 // +kubebuilder:rbac:groups=pgbackrest.cnpg.opera.com,resources=archives,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=pgbackrest.cnpg.opera.com,resources=archives/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=pgbackrest.cnpg.opera.com,resources=archives/finalizers,verbs=update
+// +kubebuilder:rbac:groups=postgresql.cnpg.io,resources=clusters/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
