@@ -72,7 +72,7 @@ var _ = Describe("pgbackrestWalArchiveOptions", func() {
 		Expect(strings.Join(options, " ")).
 			To(
 				Equal(
-					"--compress-type gzip --buffer-size=5MB --io-timeout=60 --repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --stanza test-cluster",
+					"--compress-type gzip --buffer-size=5MB --io-timeout=60 --repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --log-level-file off --stanza test-cluster",
 				))
 	})
 })

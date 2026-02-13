@@ -56,7 +56,7 @@ var _ = Describe("GetPgbackrestBackupOptions", func() {
 		Expect(strings.Join(options, " ")).
 			To(
 				Equal(
-					fmt.Sprintf("backup --annotation %s=%s --repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --pg1-path %s --pg1-user postgres --pg1-socket-path /controller/run/ --log-level-stderr warn --log-level-console off --stanza %s --lock-path /controller/tmp/pgbackrest --no-archive-check", pgbackrestCatalog.BackupNameAnnotation, backupName, pgDataDir, stanza),
+					fmt.Sprintf("backup --annotation %s=%s --repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --pg1-path %s --pg1-user postgres --pg1-socket-path /controller/run/ --log-level-stderr warn --log-level-console off --log-level-file off --stanza %s --lock-path /controller/tmp/pgbackrest --no-archive-check", pgbackrestCatalog.BackupNameAnnotation, backupName, pgDataDir, stanza),
 				))
 	})
 
