@@ -11,6 +11,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
 )
 
 // DefaultTTLSeconds is the default TTL in seconds of cache entries
@@ -23,17 +25,17 @@ type cachedEntry struct {
 }
 
 func (e *cachedEntry) isExpired() bool {
-	return time.Now().Unix()-e.fetchUnixTime > int64(e.ttl)
+	return time.Since(time.Unix(e.fetchUnixTime, 0)) > e.ttl
 }
 
-// ExtendedClient is an extended client that is capable of caching multiple secrets without relying on informers
+// ExtendedClient is an extended client that is capable of caching selected object types without relying on informers
 type ExtendedClient struct {
 	client.Client
 	cachedObjects []cachedEntry
 	mux           *sync.Mutex
 }
 
-// NewExtendedClient returns an extended client capable of caching secrets on the 'Get' operation
+// NewExtendedClient returns an extended client capable of caching selected object types on the 'Get' operation
 func NewExtendedClient(
 	baseClient client.Client,
 ) client.Client {
@@ -48,14 +50,14 @@ func (e *ExtendedClient) isObjectCached(obj client.Object) bool {
 		return true
 	}
 
-	if _, isArchive := obj.(*corev1.Secret); isArchive {
+	if _, isArchive := obj.(*pgbackrestv1.Archive); isArchive {
 		return true
 	}
 
 	return false
 }
 
-// Get behaves like the original Get method, but uses a cache for secrets
+// Get behaves like the original Get method, but uses a cache for selected object types
 func (e *ExtendedClient) Get(
 	ctx context.Context,
 	key client.ObjectKey,
@@ -89,7 +91,7 @@ func (e *ExtendedClient) getCachedObject(
 		if cacheEntry.entry.GetNamespace() != key.Namespace || cacheEntry.entry.GetName() != key.Name {
 			continue
 		}
-		if cacheEntry.entry.GetObjectKind().GroupVersionKind() != obj.GetObjectKind().GroupVersionKind() {
+		if reflect.TypeOf(cacheEntry.entry) != reflect.TypeOf(obj) {
 			continue
 		}
 		if cacheEntry.isExpired() {
@@ -121,6 +123,7 @@ func (e *ExtendedClient) getCachedObject(
 	cs := cachedEntry{
 		entry:         obj.(runtime.Object).DeepCopyObject().(client.Object),
 		fetchUnixTime: time.Now().Unix(),
+		ttl:           time.Duration(DefaultTTLSeconds) * time.Second,
 	}
 
 	contextLogger.Debug("setting object in the cache")
@@ -141,14 +144,14 @@ func (e *ExtendedClient) removeObject(object client.Object) {
 	for i, cache := range e.cachedObjects {
 		if cache.entry.GetNamespace() == object.GetNamespace() &&
 			cache.entry.GetName() == object.GetName() &&
-			cache.entry.GetObjectKind().GroupVersionKind() != object.GetObjectKind().GroupVersionKind() {
+			reflect.TypeOf(cache.entry) == reflect.TypeOf(object) {
 			e.cachedObjects = append(e.cachedObjects[:i], e.cachedObjects[i+1:]...)
 			return
 		}
 	}
 }
 
-// Update behaves like the original Update method, but on secrets it removes the secret from the cache
+// Update behaves like the original Update method, but on cached object types it removes the object from the cache
 func (e *ExtendedClient) Update(
 	ctx context.Context,
 	obj client.Object,
@@ -161,7 +164,7 @@ func (e *ExtendedClient) Update(
 	return e.Client.Update(ctx, obj, opts...)
 }
 
-// Delete behaves like the original Delete method, but on secrets it removes the secret from the cache
+// Delete behaves like the original Delete method, but on cached object types it removes the object from the cache
 func (e *ExtendedClient) Delete(
 	ctx context.Context,
 	obj client.Object,
@@ -174,7 +177,7 @@ func (e *ExtendedClient) Delete(
 	return e.Client.Delete(ctx, obj, opts...)
 }
 
-// Patch behaves like the original Patch method, but on secrets it removes the secret from the cache
+// Patch behaves like the original Patch method, but on cached object types it removes the object from the cache
 func (e *ExtendedClient) Patch(
 	ctx context.Context,
 	obj client.Object,
