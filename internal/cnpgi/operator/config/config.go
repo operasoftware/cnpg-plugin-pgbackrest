@@ -101,19 +101,27 @@ func (config *PluginConfiguration) GetReplicaSourceArchiveObjectKey() types.Name
 	}
 }
 
-// GetReferredArchiveObjectsKey gets the list of pgbackrest archive objects referred by
-// this plugin configuration
+// GetReferredArchiveObjectsKey gets the deduplicated list of pgbackrest archive objects
+// referred by this plugin configuration
 func (config *PluginConfiguration) GetReferredArchiveObjectsKey() []types.NamespacedName {
+	seen := make(map[types.NamespacedName]struct{}, 3)
 	result := make([]types.NamespacedName, 0, 3)
 
+	addUnique := func(key types.NamespacedName) {
+		if _, exists := seen[key]; !exists {
+			seen[key] = struct{}{}
+			result = append(result, key)
+		}
+	}
+
 	if len(config.PgbackrestObjectName) > 0 {
-		result = append(result, config.GetArchiveObjectKey())
+		addUnique(config.GetArchiveObjectKey())
 	}
 	if len(config.RecoveryPgbackrestObjectName) > 0 {
-		result = append(result, config.GetRecoveryArchiveObjectKey())
+		addUnique(config.GetRecoveryArchiveObjectKey())
 	}
 	if len(config.ReplicaSourcePgbackrestObjectName) > 0 {
-		result = append(result, config.GetReplicaSourceArchiveObjectKey())
+		addUnique(config.GetReplicaSourceArchiveObjectKey())
 	}
 
 	return result
