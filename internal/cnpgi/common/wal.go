@@ -431,6 +431,11 @@ func isStreamingAvailable(cluster *cnpgv1.Cluster, podName string) bool {
 		return false
 	}
 
+	// First instance of a new cluster: streaming is not available yet
+	if cluster.Status.CurrentPrimary == "" {
+		return false
+	}
+
 	// Easy case: If this pod is a replica, the streaming is always available
 	if cluster.Status.CurrentPrimary != podName {
 		return true
