@@ -61,7 +61,7 @@ tasks:
       - manifest-main
     env:
       # renovate: datasource=git-refs depName=uncommitted lookupName=https://github.com/cloudnative-pg/daggerverse currentValue=main
-      DAGGER_UNCOMMITTED_SHA: 9151fdb403298e305889668706b6cd69bb287e88
+      DAGGER_UNCOMMITTED_SHA: 9db5f17ca5ef69cc1ab20336eaf337fb11246728
     cmds:
       - GITHUB_REF= dagger -s call -m github.com/cloudnative-pg/daggerverse/uncommitted@${DAGGER_UNCOMMITTED_SHA} check-uncommitted --source . stdout
     sources:
