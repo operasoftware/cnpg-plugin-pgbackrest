@@ -57,6 +57,7 @@ var _ = Describe("GetPgbackrestRestoreOptions", func() {
 					ContainSubstring("--pg1-path %s", pgDataDir),
 					ContainSubstring("--log-level-stderr warn"),
 					ContainSubstring("--log-level-console off"),
+					ContainSubstring("--log-level-file off"),
 					ContainSubstring("--stanza %s", stanza),
 					ContainSubstring("restore --set %s", backupName),
 				),
