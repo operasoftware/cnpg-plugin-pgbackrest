@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.5.2...v0.5.3) (2026-02-16)
+
+
+### Bug Fixes
+
+* Update dagger uncommitted module to fix setuptools error ([f98313a](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/f98313a77046dc1ff674f76f21a06a1b2ad885ca))
+
 ## [0.5.2](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.5.1...v0.5.2) (2026-01-12)
 
 
