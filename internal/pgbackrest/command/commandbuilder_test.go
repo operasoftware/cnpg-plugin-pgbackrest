@@ -64,6 +64,63 @@ var _ = Describe("pgbackrestWalRestoreOptions", func() {
 	})
 })
 
+var _ = Describe("appendCloudProviderOptions", func() {
+	It("should include s3-uri-style flag when URIStyle is set to path", func(ctx SpecContext) {
+		conf := &pgbackrestApi.PgbackrestConfiguration{
+			Repositories: []pgbackrestApi.PgbackrestRepository{
+				{
+					Bucket:          "my-bucket",
+					DestinationPath: "/",
+					PgbackrestCredentials: pgbackrestApi.PgbackrestCredentials{
+						AWS: &pgbackrestApi.S3Credentials{
+							URIStyle: pgbackrestApi.URIStylePath,
+						},
+					},
+				},
+			},
+		}
+		var empty []string
+		options, err := AppendCloudProviderOptionsFromConfiguration(ctx, empty, conf)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).To(ContainSubstring("--repo1-s3-uri-style path"))
+	})
+
+	It("should include s3-uri-style flag when URIStyle is set to host", func(ctx SpecContext) {
+		conf := &pgbackrestApi.PgbackrestConfiguration{
+			Repositories: []pgbackrestApi.PgbackrestRepository{
+				{
+					Bucket:          "my-bucket",
+					DestinationPath: "/",
+					PgbackrestCredentials: pgbackrestApi.PgbackrestCredentials{
+						AWS: &pgbackrestApi.S3Credentials{
+							URIStyle: pgbackrestApi.URIStyleHost,
+						},
+					},
+				},
+			},
+		}
+		var empty []string
+		options, err := AppendCloudProviderOptionsFromConfiguration(ctx, empty, conf)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).To(ContainSubstring("--repo1-s3-uri-style host"))
+	})
+
+	It("should omit s3-uri-style flag when URIStyle is empty", func(ctx SpecContext) {
+		conf := &pgbackrestApi.PgbackrestConfiguration{
+			Repositories: []pgbackrestApi.PgbackrestRepository{
+				{
+					Bucket:          "my-bucket",
+					DestinationPath: "/",
+				},
+			},
+		}
+		var empty []string
+		options, err := AppendCloudProviderOptionsFromConfiguration(ctx, empty, conf)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).NotTo(ContainSubstring("s3-uri-style"))
+	})
+})
+
 var _ = Describe("PgbackrestRetention", func() {
 	var config *pgbackrestApi.PgbackrestConfiguration
 	var history int32 = 8

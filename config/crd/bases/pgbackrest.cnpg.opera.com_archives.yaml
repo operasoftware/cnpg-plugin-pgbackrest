@@ -279,8 +279,13 @@ spec:
                               - name
                               type: object
                             uriStyle:
-                              description: S3 Repository URI style, either "host"
-                                (default) or "path".
+                              description: |-
+                                S3 Repository URI style. Use "path" for S3-compatible stores (e.g. MinIO) at
+                                internal endpoints that cannot resolve virtual-hosted-style DNS names.
+                                Defaults to pgbackrest's own default ("host") when unset.
+                              enum:
+                              - host
+                              - path
                               type: string
                           type: object
                       required:
