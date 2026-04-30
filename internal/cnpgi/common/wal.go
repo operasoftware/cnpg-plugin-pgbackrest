@@ -109,7 +109,7 @@ func (w WALServiceImplementation) Archive(
 		utils.SanitizedEnviron())
 	if err != nil {
 		if apierrors.IsForbidden(err) {
-			return nil, errors.New("backup credentials don't yet have access permissions. Will retry reconciliation loop")
+			return nil, ErrMissingPermissions
 		}
 		return nil, err
 	}
@@ -394,7 +394,7 @@ func (w WALServiceImplementation) Status(
 		utils.SanitizedEnviron())
 	if err != nil {
 		if apierrors.IsForbidden(err) {
-			return nil, errors.New("backup credentials don't yet have access permissions. Will retry reconciliation loop")
+			return nil, ErrMissingPermissions
 		}
 		return nil, err
 	}
@@ -483,9 +483,6 @@ func gatherWALFilesToRestore(walName string, parallel int, controlledPromotion b
 
 	return walList, err
 }
-
-// ErrEndOfWALStreamReached is returned when end of WAL is detected in the cloud archive.
-var ErrEndOfWALStreamReached = errors.New("end of WAL reached")
 
 // checkEndOfWALStreamFlag returns ErrEndOfWALStreamReached if the flag is set in the restorer.
 func checkEndOfWALStreamFlag(walRestorer *pgbackrestRestorer.WALRestorer) error {

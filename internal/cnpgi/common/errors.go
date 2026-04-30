@@ -1,16 +1,18 @@
 package common
 
-// walNotFoundError is raised when a WAL file has not been found in the object store
-type walNotFoundError struct{}
+import (
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
 
-func newWALNotFoundError() *walNotFoundError { return &walNotFoundError{} }
-
-// ShouldPrintStackTrace tells whether the sidecar log stream should contain the stack trace
-func (e walNotFoundError) ShouldPrintStackTrace() bool {
-	return false
+// newWALNotFoundError creates a gRPC NotFound error for a missing WAL file
+func newWALNotFoundError() error {
+	return status.Error(codes.NotFound, "WAL file not found")
 }
 
-// Error implements the error interface
-func (e walNotFoundError) Error() string {
-	return "WAL file not found"
-}
+// ErrEndOfWALStreamReached is returned when end of WAL is detected in the cloud archive.
+var ErrEndOfWALStreamReached = status.Error(codes.OutOfRange, "end of WAL reached")
+
+// ErrMissingPermissions is returned when the plugin doesn't have the required permissions.
+var ErrMissingPermissions = status.Error(codes.FailedPrecondition,
+	"backup credentials don't yet have access permissions. Will retry reconciliation loop")
