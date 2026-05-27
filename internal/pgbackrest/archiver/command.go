@@ -66,6 +66,8 @@ func (archiver *WALArchiver) GatherWALFilesToArchive(
 	// a relative path might be used in some cases.
 	walList[0] = filepath.Join(pgWalDirectory, filepath.Base(requestedWALFile))
 
+	// G703: archiveStatusPath is derived from the PGDATA env variable and a fixed suffix, not user input
+	//nolint:gosec
 	err := filepath.WalkDir(archiveStatusPath, func(path string, d os.DirEntry, err error) error {
 		// If err is set, it means the current path is a directory and the readdir raised an error
 		// The only available option here is to skip the path and log the error.

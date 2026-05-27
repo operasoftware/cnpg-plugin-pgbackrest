@@ -40,6 +40,12 @@ import (
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
 )
 
+const (
+	kindPod             = "Pod"
+	kindJob             = "Job"
+	jobRoleFullRecovery = "full-recovery"
+)
+
 // LifecycleImplementation is the implementation of the lifecycle handler
 type LifecycleImplementation struct {
 	lifecycle.UnimplementedOperatorLifecycleServer
@@ -55,7 +61,7 @@ func (impl LifecycleImplementation) GetCapabilities(
 		LifecycleCapabilities: []*lifecycle.OperatorLifecycleCapabilities{
 			{
 				Group: "",
-				Kind:  "Pod",
+				Kind:  kindPod,
 				OperationTypes: []*lifecycle.OperatorOperationType{
 					{
 						Type: lifecycle.OperatorOperationType_TYPE_CREATE,
@@ -67,7 +73,7 @@ func (impl LifecycleImplementation) GetCapabilities(
 			},
 			{
 				Group: batchv1.GroupName,
-				Kind:  "Job",
+				Kind:  kindJob,
 				OperationTypes: []*lifecycle.OperatorOperationType{
 					{
 						Type: lifecycle.OperatorOperationType_TYPE_CREATE,
@@ -112,10 +118,10 @@ func (impl LifecycleImplementation) LifecycleHook(
 	}
 
 	switch kind {
-	case "Pod":
+	case kindPod:
 		contextLogger.Info("Reconciling pod")
 		return impl.reconcilePod(ctx, &cluster, request, pluginConfiguration)
-	case "Job":
+	case kindJob:
 		contextLogger.Info("Reconciling job")
 		return impl.reconcileJob(ctx, &cluster, request, pluginConfiguration)
 	default:
@@ -270,7 +276,7 @@ func reconcileJob(
 		WithValues("jobName", job.Name)
 	contextLogger.Debug("starting job reconciliation")
 
-	if job.Spec.Template.Labels[utils.JobRoleLabelName] != "full-recovery" {
+	if job.Spec.Template.Labels[utils.JobRoleLabelName] != jobRoleFullRecovery {
 		contextLogger.Debug("job is not a recovery job, skipping")
 		return nil, nil
 	}
@@ -280,7 +286,7 @@ func reconcileJob(
 	if err := reconcilePodSpec(
 		cluster,
 		&mutatedJob.Spec.Template.Spec,
-		"full-recovery",
+		jobRoleFullRecovery,
 		corev1.Container{
 			Args: []string{"restore"},
 		},
