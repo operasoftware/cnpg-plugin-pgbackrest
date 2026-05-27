@@ -24,10 +24,11 @@ tasks:
       GOLANG_IMAGE_VERSION: 1.25.5
     cmds:
       - >
-        GITHUB_REF= dagger -sc "github.com/sagikazarmark/daggerverse/golangci-lint@${DAGGER_GOLANGCI_LINT_SHA}
+        output=$(GITHUB_REF= dagger -sc "github.com/sagikazarmark/daggerverse/golangci-lint@${DAGGER_GOLANGCI_LINT_SHA}
         --go-version ${GOLANG_IMAGE_VERSION} |
-        run . --config .golangci.yml |
-        stdout"
+        run . --config .golangci.yml --raw-args --issues-exit-code=0 |
+        stdout");
+        if [ "$output" != "0 issues." ]; then echo "output=$output"; exit 1; fi
     sources:
       - ./**/*.go
 
