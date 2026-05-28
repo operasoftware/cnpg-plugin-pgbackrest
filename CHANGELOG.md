@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.6.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.5.2...v0.6.0) (2026-05-28)
+
+
+### Features
+
+* Replace TYPE_PATCH with TYPE_EVALUATE in lifecycle capabilities ([5d4f120](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/5d4f12058a522a2a2ade92974d041398bcd58ba0))
+* Return proper gRPC error codes for expected conditions ([#67](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/67)) ([50ce1e3](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/50ce1e3cfcba794dbe109bb41dbdf1757fa48227))
+
+
+### Bug Fixes
+
+* Add clusters/finalizers RBAC permission for OwnerReferencesPermissionEnforcement ([daf6b8c](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/daf6b8c24ef2bca3d69deff1c277c10da91a0334))
+* **ci:** Make golangci-lint output visible and fix issues ([d49d9ed](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/d49d9edff4b8b1f68cfe684f234b35b82e363d35))
+* Correct restore_command on CNPG 1.29 ([#80](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/80)) ([8019b0c](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/8019b0cf64c676ae1c5e34bbdd68ca8ce97d2b75))
+* Deduplicate Archive object references to prevent duplicate volume projections ([5471c32](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/5471c32bf6efadac7d9bdf00831ab3fc78ec4ce0))
+* Disable end-of-wal flag management during backup restoration ([79108f0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/79108f0f6de5904c4f8345568b1674b2230afd85))
+* Improve reliability of object cache management ([8676127](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/8676127344fbb37359cb803f6f07701aa79909cc))
+* Set LeaderElectionReleaseOnCancel to true to enable RollingUpdates ([716d295](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/716d295cd4acefe4452de2066e45c38975cb14b2))
+* Update dagger uncommitted module to fix setuptools error ([f98313a](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/f98313a77046dc1ff674f76f21a06a1b2ad885ca))
+
 ## [0.5.2](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.5.1...v0.5.2) (2026-01-12)
 
 
