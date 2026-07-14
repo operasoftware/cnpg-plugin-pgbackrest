@@ -84,29 +84,24 @@ func GetPodContainerLogs(
 // FindArchiveBatches finds "WAL archive batch prepared" log entries and returns the parsed data.
 // Each returned map contains the structured log fields.
 func FindArchiveBatches(logEntries []map[string]any) []map[string]any {
-	var batches []map[string]any
-
-	for _, logEntry := range logEntries {
-		// Check if this is a "WAL archive batch prepared" message
-		if msg, ok := logEntry["msg"].(string); ok && msg == "WAL archive batch prepared" {
-			batches = append(batches, logEntry)
-		}
-	}
-
-	return batches
+	return FindLogEntriesByMessage(logEntries, "WAL archive batch prepared")
 }
 
 // FindArchiveBatchCompletions finds "WAL archive batch completed" log entries and returns the parsed data.
 // Each returned map contains the structured log fields.
 func FindArchiveBatchCompletions(logEntries []map[string]any) []map[string]any {
-	var batches []map[string]any
+	return FindLogEntriesByMessage(logEntries, "WAL archive batch completed")
+}
+
+// FindLogEntriesByMessage returns the log entries whose "msg" field equals the given message.
+func FindLogEntriesByMessage(logEntries []map[string]any, message string) []map[string]any {
+	var matches []map[string]any
 
 	for _, logEntry := range logEntries {
-		// Check if this is a "WAL archive batch completed" message
-		if msg, ok := logEntry["msg"].(string); ok && msg == "WAL archive batch completed" {
-			batches = append(batches, logEntry)
+		if msg, ok := logEntry["msg"].(string); ok && msg == message {
+			matches = append(matches, logEntry)
 		}
 	}
 
-	return batches
+	return matches
 }
