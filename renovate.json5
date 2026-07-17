@@ -62,7 +62,8 @@
         "patch",
         "digest"
       ],
-      "groupName": "all non-major go dependencies"
+      "groupName": "all non-major go dependencies",
+      "minimumReleaseAge": "3 days"
     },
     {
       "matchDatasources": [
@@ -74,7 +75,8 @@
       "matchUpdateTypes": [
         "digest"
       ],
-      "groupName": "all cloudnative-pg daggerverse dependencies"
+      "groupName": "all cloudnative-pg daggerverse dependencies",
+      "minimumReleaseAge": "3 days"
     },
     {
       "matchDatasources": [
@@ -86,14 +88,16 @@
       "matchUpdateTypes": [
         "digest"
       ],
-      "groupName": "all sagikazarmark daggerverse dependencies"
+      "groupName": "all sagikazarmark daggerverse dependencies",
+      "minimumReleaseAge": "3 days"
     },
     {
       "matchUpdateTypes": [
         "minor",
         "patch"
       ],
-      "matchCurrentVersion": "!/^0/"
+      "matchCurrentVersion": "!/^0/",
+      "minimumReleaseAge": "3 days"
     }
   ]
 }
