@@ -21,7 +21,7 @@ tasks:
       # renovate: datasource=git-refs depName=golangci-lint lookupName=https://github.com/sagikazarmark/daggerverse currentValue=main
       DAGGER_GOLANGCI_LINT_SHA: 6133ad18e131b891d4723b8e25d69f5de077b472
       # renovate: datasource=docker depName=golang versioning=semver
-      GOLANG_IMAGE_VERSION: 1.25.5
+      GOLANG_IMAGE_VERSION: 1.26.4
     cmds:
       - >
         output=$(GITHUB_REF= dagger -sc "github.com/sagikazarmark/daggerverse/golangci-lint@${DAGGER_GOLANGCI_LINT_SHA}
@@ -72,7 +72,7 @@ tasks:
     desc: Run go test
     env:
       # renovate: datasource=docker depName=golang versioning=semver
-      GOLANG_IMAGE_VERSION: 1.25.5
+      GOLANG_IMAGE_VERSION: 1.26.4
       # renovate: datasource=git-refs depname=kubernetes packageName=https://github.com/kubernetes/kubernetes versioning=semver
       K8S_VERSION: 1.31.0
       # renovate: datasource=git-refs depName=controller-runtime packageName=https://github.com/kubernetes-sigs/controller-runtime versioning=semver
@@ -248,7 +248,7 @@ tasks:
       - start-kind-cluster
     vars:
       # renovate: datasource=docker depName=golang versioning=semver
-      GOLANG_IMAGE_VERSION: 1.25.5
+      GOLANG_IMAGE_VERSION: 1.26.4
       KUBECONFIG_PATH:
         sh: mktemp -t kubeconfig-XXXXX
     env:
@@ -267,7 +267,7 @@ tasks:
       - build-images
     vars:
       # renovate: datasource=docker depName=golang versioning=semver
-      GOLANG_IMAGE_VERSION: 1.25.5
+      GOLANG_IMAGE_VERSION: 1.26.4
       # renovate: datasource=docker depName=k3s  versioning=semver
       K3S_IMAGE_VERSION: 1.33.1
     env:
