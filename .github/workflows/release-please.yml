@@ -14,7 +14,7 @@ jobs:
       #   https://github.com/googleapis/release-please/issues/2280.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Checkout
         uses: actions/checkout@v7
       - name: Install Task
