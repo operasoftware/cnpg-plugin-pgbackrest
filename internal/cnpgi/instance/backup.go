@@ -19,9 +19,11 @@ package instance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	cnpgv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/postgres"
 	"github.com/cloudnative-pg/cnpg-i-machinery/pkg/pluginhelper/decoder"
 	"github.com/cloudnative-pg/cnpg-i/pkg/backup"
@@ -33,8 +35,10 @@ import (
 	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
+	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
 	pgbackrestBackup "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/backup"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/catalog"
+	pgbackrestCommand "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/command"
 	pgbackrestCredentials "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/credentials"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
 )
@@ -102,6 +106,20 @@ func (b BackupServiceImplementation) Backup(
 		b.PGDataPath,
 	)
 
+	// When backup-from-standby is enabled and this instance is a standby, point
+	// pgBackRest at the current primary so both stanza-create and the backup can
+	// coordinate control operations there.
+	standbyTopology, err := b.resolveStandbyTopology(ctx, configuration.Cluster, &archive.Spec.Configuration)
+	if err != nil {
+		contextLogger.Error(err, "while resolving backup-from-standby topology")
+		return nil, err
+	}
+	if standbyTopology != nil {
+		contextLogger.Info("Taking backup from standby",
+			"primaryHost", standbyTopology.PrimaryHost)
+		backupCmd = backupCmd.WithStandbyBackup(standbyTopology)
+	}
+
 	// We need to connect to PostgreSQL and to do that we need
 	// PGHOST (and the like) to be available
 	osEnvironment := utils.SanitizedEnviron()
@@ -165,5 +183,57 @@ func (b BackupServiceImplementation) Backup(
 			"name":        metadata.Data.Name,
 			"displayName": metadata.Data.DisplayName,
 		},
+	}, nil
+}
+
+// errNoStandbyInjection is returned when backup-from-standby is enabled while the
+// plugin is still expected to inject the service and the certificate SAN, which is
+// not implemented yet.
+var errNoStandbyInjection = errors.New(
+	"backup-from-standby is experimental and incomplete: the plugin does not inject the pgBackRest " +
+		"service and certificate SAN yet. Provide both yourself and set injectService and injectSAN to false")
+
+// resolveStandbyTopology returns the topology needed to take this backup from a
+// standby, or nil when a normal (local/primary) backup should be taken. It
+// returns nil when the feature is disabled, or when this instance is the
+// primary (or no primary is known yet). When this instance is a standby with a
+// known primary, it resolves the primary pod's IP so pgBackRest can reach the
+// primary's TLS server.
+func (b BackupServiceImplementation) resolveStandbyTopology(
+	ctx context.Context,
+	cluster *cnpgv1.Cluster,
+	cfg *pgbackrestApi.PgbackrestConfiguration,
+) (*pgbackrestCommand.StandbyBackupTopology, error) {
+	contextLogger := log.FromContext(ctx)
+
+	enabled := cfg.IsBackupStandbyEnabled()
+	currentPrimary := cluster.Status.CurrentPrimary
+	onStandby, err := pgbackrestCommand.ShouldConfigurePrimaryPeer(enabled, currentPrimary, b.InstanceName)
+	if err != nil {
+		return nil, err
+	}
+	if !onStandby {
+		if enabled {
+			contextLogger.Info(
+				"backup-from-standby enabled but this instance is not a standby; taking a local backup",
+				"instance", b.InstanceName, "currentPrimary", currentPrimary)
+		}
+		return nil, nil
+	}
+
+	// The service and SAN injection is not implemented yet, so the feature only works
+	// when both are provided out of band. Fail fast instead of letting pgBackRest fail
+	// with a connection or certificate error.
+	if cfg.BackupStandby.ShouldInjectService() || cfg.BackupStandby.ShouldInjectSAN() {
+		return nil, errNoStandbyInjection
+	}
+
+	return &pgbackrestCommand.StandbyBackupTopology{
+		PrimaryHost:   cfg.BackupStandby.GetServiceName(cluster.Name),
+		PrimaryPort:   pgbackrestCommand.DefaultServerPort,
+		PrimaryPGData: b.PGDataPath,
+		CertFile:      pgbackrestCommand.DefaultTLSCertFile,
+		KeyFile:       pgbackrestCommand.DefaultTLSKeyFile,
+		CAFile:        pgbackrestCommand.DefaultTLSCAFile,
 	}, nil
 }

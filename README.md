@@ -226,6 +226,31 @@ This configuration enables both WAL archiving and data directory backups.
 > Archiving will only start working after at least one backup is created. That's due to
 > the stanza creation process which currently is only executed on backups.
 
+### Backups From a Standby (experimental, incomplete)
+
+`backupStandby` offloads backup I/O to a standby using pgBackRest multi-host TLS.
+Whether a backup runs on a standby is decided by CloudNativePG through the backup
+target; the plugin adds the primary as a second pgBackRest host when it finds
+itself on a replica.
+
+```yaml
+spec:
+  configuration:
+    backupStandby:
+      enabled: true
+      injectService: false
+      injectSAN: false
+      # serviceName: my-pgbackrest   # defaults to <cluster>-pgbackrest
+```
+
+> [!WARNING]
+> This is incomplete. The plugin does not yet inject the headless service or the
+> certificate SAN, and it does not yet run the pgBackRest TLS server on the
+> instances. Enabling it with `injectService` or `injectSAN` left at their default
+> fails with an explicit error. To try it, provide the service (exposing the
+> pgBackRest TLS server port) and the SAN yourself, run the server, and set both
+> options to `false`. See [issue #103](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/103).
+
 ### Performing a Base Backup
 
 Once WAL archiving is enabled, the cluster is ready for backups. To create a
