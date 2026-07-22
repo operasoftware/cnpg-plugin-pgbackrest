@@ -57,6 +57,11 @@ func Start(ctx context.Context) error {
 					&corev1.Secret{},
 					&pgbackrestv1.Archive{},
 					&cnpgv1.Cluster{},
+					// Read Pods uncached (direct GET) as well: the backup path
+					// looks up the primary pod for backup-from-standby, and a
+					// cache-backed read would start a cluster-wide Pod informer
+					// (list/watch) in every sidecar.
+					&corev1.Pod{},
 				},
 			},
 		},
