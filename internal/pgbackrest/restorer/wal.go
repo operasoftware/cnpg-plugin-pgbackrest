@@ -35,6 +35,10 @@ import (
 
 const (
 	endOfWALStreamFlagFilename = "end-of-wal-stream"
+
+	// walNotFoundExitCode is the pgbackrest archive-get exit code returned when
+	// the requested WAL is not present in a valid repository.
+	walNotFoundExitCode = 1
 )
 
 // ErrWALNotFound is returned when the WAL is not found in the cloud archive
@@ -263,15 +267,23 @@ func (restorer *WALRestorer) Restore(
 		"command", "pgbackrest",
 		"options", options,
 	)
+	return walRestoreError(walName, err)
+}
+
+// walRestoreError maps a pgbackrest archive-get failure to a typed error,
+// returning ErrWALNotFound when the requested WAL is missing from the archive.
+func walRestoreError(walName string, err error) error {
 	var exitError *exec.ExitError
 	if !errors.As(err, &exitError) {
 		return fmt.Errorf("unexpected failure retrieving %q with %s: %w",
 			walName, "pgbackrest archive-get", err)
 	}
 
-	exitCode := exitError.ExitCode()
+	if exitError.ExitCode() == walNotFoundExitCode {
+		return ErrWALNotFound
+	}
 
 	return fmt.Errorf("encountered an error: '%d' while executing %s",
-		exitCode,
+		exitError.ExitCode(),
 		"pgbackrest archive-get")
 }
