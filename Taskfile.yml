@@ -18,7 +18,7 @@ tasks:
   lint:
     desc: Run golangci-lint
     env:
-      # renovate: datasource=git-refs depName=golangci-lint lookupName=https://github.com/sagikazarmark/daggerverse currentValue=main
+      # renovate: datasource=github-digest depName=golangci-lint lookupName=sagikazarmark/daggerverse currentValue=main
       DAGGER_GOLANGCI_LINT_SHA: 6133ad18e131b891d4723b8e25d69f5de077b472
       # renovate: datasource=docker depName=golang versioning=semver
       GOLANG_IMAGE_VERSION: 1.26.4
@@ -35,7 +35,7 @@ tasks:
   spellcheck:
     desc: Run spellcheck
     env:
-      # renovate: datasource=git-refs depName=spellcheck lookupName=https://github.com/cloudnative-pg/daggerverse currentValue=main
+      # renovate: datasource=github-digest depName=spellcheck lookupName=cloudnative-pg/daggerverse currentValue=main
       DAGGER_SPELLCHECK_SHA: 9151fdb403298e305889668706b6cd69bb287e88
     cmds:
       - >
@@ -49,7 +49,7 @@ tasks:
   commitlint:
     desc: Check for conventional commits
     env:
-      # renovate: datasource=git-refs depName=commitlint lookupName=https://github.com/cloudnative-pg/daggerverse currentValue=main
+      # renovate: datasource=github-digest depName=commitlint lookupName=cloudnative-pg/daggerverse currentValue=main
       DAGGER_COMMITLINT_SHA: 9151fdb403298e305889668706b6cd69bb287e88
     cmds:
       - >
@@ -61,7 +61,7 @@ tasks:
     deps:
       - manifest-main
     env:
-      # renovate: datasource=git-refs depName=uncommitted lookupName=https://github.com/cloudnative-pg/daggerverse currentValue=main
+      # renovate: datasource=github-digest depName=uncommitted lookupName=cloudnative-pg/daggerverse currentValue=main
       DAGGER_UNCOMMITTED_SHA: 9db5f17ca5ef69cc1ab20336eaf337fb11246728
     cmds:
       - GITHUB_REF= dagger -s call -m github.com/cloudnative-pg/daggerverse/uncommitted@${DAGGER_UNCOMMITTED_SHA} check-uncommitted --source . stdout
@@ -73,9 +73,9 @@ tasks:
     env:
       # renovate: datasource=docker depName=golang versioning=semver
       GOLANG_IMAGE_VERSION: 1.26.4
-      # renovate: datasource=git-refs depname=kubernetes packageName=https://github.com/kubernetes/kubernetes versioning=semver
+      # renovate: datasource=github-digest depName=kubernetes packageName=kubernetes/kubernetes versioning=semver
       K8S_VERSION: 1.31.0
-      # renovate: datasource=git-refs depName=controller-runtime packageName=https://github.com/kubernetes-sigs/controller-runtime versioning=semver
+      # renovate: datasource=github-digest depName=controller-runtime packageName=kubernetes-sigs/controller-runtime versioning=semver
       SETUP_ENVTEST_VERSION: 0.19.3
     cmds:
       - >
@@ -168,7 +168,7 @@ tasks:
       - start-registry
       - start-dagger-engine-for-local-builds
     env:
-      # renovate: datasource=git-refs depName=docker lookupName=https://github.com/purpleclay/daggerverse currentValue=main
+      # renovate: datasource=github-digest depName=docker lookupName=purpleclay/daggerverse currentValue=main
       DAGGER_DOCKER_SHA: ee12c1a4a2630e194ec20c5a9959183e3a78c192
       _EXPERIMENTAL_DAGGER_RUNNER_HOST: docker-container://{{ .DAGGER_ENGINE_CONTAINER_NAME }}
     cmds:
@@ -185,7 +185,7 @@ tasks:
       - start-registry
       - start-dagger-engine-for-local-builds
     env:
-      # renovate: datasource=git-refs depName=docker lookupName=https://github.com/purpleclay/daggerverse currentValue=main
+      # renovate: datasource=github-digest depName=docker lookupName=purpleclay/daggerverse currentValue=main
       DAGGER_DOCKER_SHA: ee12c1a4a2630e194ec20c5a9959183e3a78c192
       _EXPERIMENTAL_DAGGER_RUNNER_HOST: docker-container://{{ .DAGGER_ENGINE_CONTAINER_NAME }}
     cmds:
@@ -205,7 +205,7 @@ tasks:
     desc: Install kind
     run: once
     vars:
-      # renovate: datasource=git-refs depName=kind lookupName=https://github.com/kubernetes-sigs/kind versioning=semver
+      # renovate: datasource=github-digest depName=kind lookupName=kubernetes-sigs/kind versioning=semver
       KIND_VERSION: v0.26.0
     cmds:
       - go install sigs.k8s.io/kind@{{.KIND_VERSION}}
@@ -310,7 +310,7 @@ tasks:
       # where the branch name is suffixed with /merge. Prepend pr- to the branch name on PRs.
       IMAGE_VERSION: '{{regexReplaceAll "(\\d+)/merge" .GITHUB_REF_NAME "pr-${1}"}}'
     env:
-      # renovate: datasource=git-refs depName=docker lookupName=https://github.com/purpleclay/daggerverse currentValue=main
+      # renovate: datasource=github-digest depName=docker lookupName=purpleclay/daggerverse currentValue=main
       DAGGER_DOCKER_SHA: ee12c1a4a2630e194ec20c5a9959183e3a78c192
     cmds:
       - >
@@ -328,7 +328,7 @@ tasks:
   controller-gen:
     desc: Run controller-gen
     env:
-      # renovate: datasource=git-refs depName=controller-gen lookupName=https://github.com/cloudnative-pg/daggerverse currentValue=main
+      # renovate: datasource=github-digest depName=controller-gen lookupName=cloudnative-pg/daggerverse currentValue=main
       DAGGER_CONTROLLER_GEN_SHA: ee59e34a99940e45f87a16177b1d640975b05b74
     cmds:
       - >
@@ -400,7 +400,7 @@ tasks:
       # where the branch name is suffixed with /merge. Prepend pr- to the branch name on PRs.
       IMAGE_VERSION: '{{regexReplaceAll "(\\d+)/merge" .GITHUB_REF_NAME "pr-${1}"}}'
     env:
-      # renovate: datasource=git-refs depName=kustomize lookupName=https://github.com/sagikazarmark/daggerverse currentValue=main
+      # renovate: datasource=github-digest depName=kustomize lookupName=sagikazarmark/daggerverse currentValue=main
       DAGGER_KUSTOMIZE_SHA: 96c13b929c636316317f745ff36cda4e4c66f680
     cmds:
       - >
@@ -430,7 +430,7 @@ tasks:
         - GITHUB_REF_NAME
         - GITHUB_TOKEN
     env:
-      # renovate: datasource=git-refs depName=gh lookupName=https://github.com/sagikazarmark/daggerverse
+      # renovate: datasource=github-digest depName=gh lookupName=sagikazarmark/daggerverse currentValue=main
       DAGGER_GH_SHA: 96c13b929c636316317f745ff36cda4e4c66f680
     preconditions:
       - sh: "[[ {{.GITHUB_REF}} =~ 'refs/tags/v.*' ]]"

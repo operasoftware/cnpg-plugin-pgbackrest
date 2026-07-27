@@ -1,103 +1,105 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    ":gitSignOff",
-    ":semanticCommitType(chore)",
-    ":labels(automated,no-issue)",
-    "customManagers:githubActionsVersions",
-    ":automergeMinor",
-    ":automergeDigest"
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:recommended',
+    ':gitSignOff',
+    ':semanticCommitType(chore)',
+    ':labels(automated,no-issue)',
+    'customManagers:githubActionsVersions',
+    ':automergeMinor',
+    ':automergeDigest',
   ],
   rebaseWhen: 'never',
   prConcurrentLimit: 5,
-  "gomod": {
+  gomod: {
     // Do not manage the dagger go.mod file
-    "ignorePaths": [
-      "dagger/gotest/go.mod",
-      "dagger/e2e/go.mod"
+    ignorePaths: [
+      'dagger/gotest/go.mod',
+      'dagger/e2e/go.mod',
     ],
   },
-  "postUpdateOptions": [
-    "gomodTidy"
+  postUpdateOptions: [
+    'gomodTidy',
   ],
-  "semanticCommits": "enabled",
-  "commitBodyTable": true,
+  semanticCommits: 'enabled',
+  commitBodyTable: true,
   // Allow renovate to update the following types of dependencies in the Taskfile.yml:
   // - digests for env variables ending in _SHA
   // - versions for env variables ending in _VERSION
-  "customManagers": [
+  customManagers: [
     {
-      "customType": "regex",
-      "fileMatch": [
-        "(^Taskfile\\.yml$)"
+      customType: 'regex',
+      managerFilePatterns: [
+        '/(^Taskfile\\.yml$)/',
       ],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-.]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?(?: extractVersion=(?<extractVersion>[^\\s]+?))?(?: currentValue=(?<currentValue>[^\\s]+?))?\\s+[A-Za-z0-9_]+?_SHA\\s*:\\s*[\"']?(?<currentDigest>[a-f0-9]+?)[\"']?\\s",
-        "# renovate: datasource=(?<datasource>[a-z-.]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?(?: extractVersion=(?<extractVersion>[^\\s]+?))?\\s+[A-Za-z0-9_]+?_VERSION\\s*:\\s*[\"']?(?<currentValue>.+?)[\"']?\\s"
-      ]
-    }
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>[a-z-.]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?(?: extractVersion=(?<extractVersion>[^\\s]+?))?(?: currentValue=(?<currentValue>[^\\s]+?))?\\s+[A-Za-z0-9_]+?_SHA\\s*:\\s*["\']?(?<currentDigest>[a-f0-9]+?)["\']?\\s',
+        '# renovate: datasource=(?<datasource>[a-z-.]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?(?: extractVersion=(?<extractVersion>[^\\s]+?))?\\s+[A-Za-z0-9_]+?_VERSION\\s*:\\s*["\']?(?<currentValue>.+?)["\']?\\s',
+      ],
+    },
   ],
-  "pip-compile": {
-    "fileMatch": ["(^|/)sidecar-requirements\\.txt$"]
+  'pip-compile': {
+    managerFilePatterns: [
+      '/(^|/)sidecar-requirements\\.txt$/',
+    ],
   },
-  "pip_requirements": {
-    "enabled": false
+  pip_requirements: {
+    enabled: false,
   },
-  "pip_setup": {
-    "enabled": false
+  pip_setup: {
+    enabled: false,
   },
-  "packageRules": [
+  packageRules: [
     {
-      "matchDatasources": [
-        "go"
+      matchDatasources: [
+        'go',
       ],
-      "matchPackageNames": [
+      matchPackageNames: [
         // Avoid k8s dependencies from being grouped with other dependencies. We want to be careful
         // with how we update them.
-        "!/k8s.io/"
+        '!/k8s.io/',
       ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch",
-        "digest"
+      matchUpdateTypes: [
+        'minor',
+        'patch',
+        'digest',
       ],
-      "groupName": "all non-major go dependencies",
-      "minimumReleaseAge": "3 days"
+      groupName: 'all non-major go dependencies',
+      minimumReleaseAge: '3 days',
     },
     {
-      "matchDatasources": [
-        "git-refs"
+      matchDatasources: [
+        'github-digest',
       ],
-      "matchPackageNames": [
-        "https://github.com/cloudnative-pg/daggerverse"
+      matchPackageNames: [
+        'cloudnative-pg/daggerverse',
       ],
-      "matchUpdateTypes": [
-        "digest"
+      matchUpdateTypes: [
+        'digest',
       ],
-      "groupName": "all cloudnative-pg daggerverse dependencies",
-      "minimumReleaseAge": "3 days"
+      groupName: 'all cloudnative-pg daggerverse dependencies',
+      minimumReleaseAge: '3 days',
     },
     {
-      "matchDatasources": [
-        "git-refs"
+      matchDatasources: [
+        'github-digest',
       ],
-      "matchPackageNames": [
-        "https://github.com/sagikazarmark/daggerverse"
+      matchPackageNames: [
+        'sagikazarmark/daggerverse',
       ],
-      "matchUpdateTypes": [
-        "digest"
+      matchUpdateTypes: [
+        'digest',
       ],
-      "groupName": "all sagikazarmark daggerverse dependencies",
-      "minimumReleaseAge": "3 days"
+      groupName: 'all sagikazarmark daggerverse dependencies',
+      minimumReleaseAge: '3 days',
     },
     {
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
+      matchUpdateTypes: [
+        'minor',
+        'patch',
       ],
-      "matchCurrentVersion": "!/^0/",
-      "minimumReleaseAge": "3 days"
-    }
-  ]
+      matchCurrentVersion: '!/^0/',
+      minimumReleaseAge: '3 days',
+    },
+  ],
 }
