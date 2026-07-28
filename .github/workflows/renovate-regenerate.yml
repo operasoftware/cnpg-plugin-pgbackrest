@@ -1,11 +1,14 @@
 name: Regenerate controller-gen output
 
-# Renovate can't run `task controller-gen` itself: postUpdateOptions=goGenerate
+# Renovate can't run `task manifest-main` itself: postUpdateOptions=goGenerate
 # and postUpgradeTasks both require commands to be allowlisted in Renovate's
 # global config, which isn't something the hosted app exposes to individual
 # repos. This workflow does the regeneration instead, on Renovate's
 # controller-gen PRs specifically, and pushes a fixup commit so `task
 # uncommitted` passes without a maintainer having to intervene manually.
+# `task manifest-main` is the same task `uncommitted` itself depends on (it
+# transitively runs `controller-gen`, then rebuilds `manifest.yaml`), so this
+# stays in sync with whatever `uncommitted` actually checks.
 #
 # The fixup commit uses a dedicated author (renovate-fixup[bot]) that's listed
 # in `gitIgnoredAuthors` in renovate.json5, so Renovate doesn't treat the PR as
@@ -51,8 +54,11 @@ jobs:
         run: |
           curl -L https://dl.dagger.io/dagger/install.sh | BIN_DIR=$HOME/.local/bin sh
 
-      - name: Regenerate controller-gen output
-        run: task controller-gen
+      - name: Regenerate controller-gen output and manifest
+        # manifest-main depends on controller-gen and also rebuilds manifest.yaml (via
+        # kustomize), so this covers everything task uncommitted checks - not just the
+        # controller-gen-generated files.
+        run: task manifest-main
 
       - name: Commit and push if changed
         run: |
