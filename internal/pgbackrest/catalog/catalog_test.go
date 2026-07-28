@@ -144,6 +144,29 @@ var _ = Describe("pgbackrest info parsing", func() {
 			Equal(time.Date(2025, 3, 31, 14, 20, 41, 0, time.UTC)))
 	})
 
+	It("reports the stanza as present when the status code is zero", func() {
+		result, err := NewCatalogFromPgbackrestInfo(pgbackrestInfoOutput)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result.StanzaMissing()).To(BeFalse())
+	})
+
+	It("reports the stanza as missing when the status code is 1", func() {
+		const missingStanzaOutput = `[
+  {
+    "archive": [],
+    "backup": [],
+    "cipher": "none",
+    "db": [],
+    "name": "cluster-example-pgbackrest",
+    "status": { "code": 1, "message": "missing stanza path" }
+  }
+]`
+		result, err := NewCatalogFromPgbackrestInfo(missingStanzaOutput)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result.StanzaMissing()).To(BeTrue())
+		Expect(result.Status.Message).To(Equal("missing stanza path"))
+	})
+
 	// It("can find the closest backup info when there is one", func() {
 	// 	recoveryTarget := &v1.RecoveryTarget{TargetTime: time.Now().Format("2006-01-02 15:04:04")}
 	// 	closestBackupInfo, err := catalog.FindBackupInfo(recoveryTarget)

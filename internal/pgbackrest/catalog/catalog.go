@@ -335,6 +335,26 @@ type Catalog struct {
 	Stanza     string                     `json:"name"`
 	Databases  []PgbackrestBackupDatabase `json:"db"`
 	Encryption string                     `json:"cipher"`
+	Status     PgbackrestStanzaStatus     `json:"status"`
+}
+
+// StanzaStatusCodeMissing is the "pgbackrest info" stanza status code returned when
+// the stanza has not been created in the repository yet (its archive.info is absent).
+// While the stanza is in this state WAL archiving cannot succeed until
+// "pgbackrest stanza-create" has been run.
+const StanzaStatusCodeMissing = 1
+
+// PgbackrestStanzaStatus is the "status" object that "pgbackrest info" reports for a
+// stanza. Only the fields we act on are parsed; the rest of the object is ignored.
+type PgbackrestStanzaStatus struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+// StanzaMissing reports whether "pgbackrest info" says the stanza has not been created
+// in the repository yet, i.e. WAL archiving cannot work until stanza-create is run.
+func (catalog *Catalog) StanzaMissing() bool {
+	return catalog.Status.Code == StanzaStatusCodeMissing
 }
 
 // NewSingleBackupCatalogFromPgbackrestInfo parses the output of pgbackrest info
