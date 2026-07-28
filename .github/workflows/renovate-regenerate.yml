@@ -60,7 +60,10 @@ jobs:
             git config user.name "renovate-fixup[bot]"
             git config user.email "renovate-fixup[bot]@users.noreply.github.com"
             git add -A
-            git commit -m "chore: regenerate controller-gen output"
+            # -s (--signoff) appends "Signed-off-by: <user.name> <user.email>", matching
+            # the :gitSignOff preset renovate itself uses to satisfy commitlint's
+            # signed-off-by rule.
+            git commit -s -m "chore: regenerate controller-gen output"
             git push
           else
             echo "No drift detected, nothing to commit."
