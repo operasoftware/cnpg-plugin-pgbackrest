@@ -37,7 +37,7 @@ jobs:
           # Must be a PAT/App token, not the default GITHUB_TOKEN: pushes made
           # with the default token don't trigger further pull_request runs, so
           # ci.yml would never re-check the fixup commit.
-          token: ${{ secrets.RENOVATE_FIXUP_PAT }}
+          token: ${{ secrets.REPO_PAT }}
 
       - name: Install Task
         uses: arduino/setup-task@v3.0.0
