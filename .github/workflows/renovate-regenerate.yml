@@ -1,0 +1,67 @@
+name: Regenerate controller-gen output
+
+# Renovate can't run `task controller-gen` itself: postUpdateOptions=goGenerate
+# and postUpgradeTasks both require commands to be allowlisted in Renovate's
+# global config, which isn't something the hosted app exposes to individual
+# repos. This workflow does the regeneration instead, on Renovate's
+# controller-gen PRs specifically, and pushes a fixup commit so `task
+# uncommitted` passes without a maintainer having to intervene manually.
+#
+# The fixup commit uses a dedicated author (renovate-fixup[bot]) that's listed
+# in `gitIgnoredAuthors` in renovate.json5, so Renovate doesn't treat the PR as
+# edited-by-a-human and stop touching it. If Renovate ever force-pushes the
+# branch for any reason, this workflow re-runs via `synchronize` and reapplies
+# the fix.
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - Taskfile.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: renovate-regenerate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  regenerate:
+    if: github.actor == 'renovate[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+          # Must be a PAT/App token, not the default GITHUB_TOKEN: pushes made
+          # with the default token don't trigger further pull_request runs, so
+          # ci.yml would never re-check the fixup commit.
+          token: ${{ secrets.RENOVATE_FIXUP_PAT }}
+
+      - name: Install Task
+        uses: arduino/setup-task@v3.0.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Dagger
+        env:
+          # renovate: datasource=github-tags depName=dagger/dagger versioning=semver
+          DAGGER_VERSION: 0.21.7
+        run: |
+          curl -L https://dl.dagger.io/dagger/install.sh | BIN_DIR=$HOME/.local/bin sh
+
+      - name: Regenerate controller-gen output
+        run: task controller-gen
+
+      - name: Commit and push if changed
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "renovate-fixup[bot]"
+            git config user.email "renovate-fixup[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore: regenerate controller-gen output"
+            git push
+          else
+            echo "No drift detected, nothing to commit."
+          fi
