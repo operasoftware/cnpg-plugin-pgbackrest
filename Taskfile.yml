@@ -333,7 +333,7 @@ tasks:
       # Kept in sync with the Makefile's CONTROLLER_TOOLS_VERSION: both are tracked by
       # renovate under the same depName/datasource, so bumps land in a single PR.
       # renovate: datasource=github-tags depName=kubernetes-sigs/controller-tools versioning=semver
-      CONTROLLER_GEN_VERSION: "0.19.0"
+      CONTROLLER_GEN_VERSION: "0.21.0"
     cmds:
       - >
         GITHUB_REF= dagger -s call -m github.com/cloudnative-pg/daggerverse/controller-gen@${DAGGER_CONTROLLER_GEN_SHA}
