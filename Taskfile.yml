@@ -330,13 +330,24 @@ tasks:
     env:
       # renovate: datasource=github-digest depName=controller-gen lookupName=cloudnative-pg/daggerverse currentValue=main
       DAGGER_CONTROLLER_GEN_SHA: ee59e34a99940e45f87a16177b1d640975b05b74
+      # Kept in sync with the Makefile's CONTROLLER_TOOLS_VERSION: both are tracked by
+      # renovate under the same depName/datasource, so bumps land in a single PR.
+      # renovate: datasource=github-tags depName=kubernetes-sigs/controller-tools versioning=semver
+      CONTROLLER_GEN_VERSION: "0.19.0"
     cmds:
       - >
         GITHUB_REF= dagger -s call -m github.com/cloudnative-pg/daggerverse/controller-gen@${DAGGER_CONTROLLER_GEN_SHA}
+        --controller-gen-version=${CONTROLLER_GEN_VERSION}
         controller-gen --source . --args object:headerFile=hack/boilerplate.go.txt --args paths=./api/...
         file --path api/v1/zz_generated.deepcopy.go export --path api/v1/zz_generated.deepcopy.go
       - >
         GITHUB_REF= dagger -s call -m github.com/cloudnative-pg/daggerverse/controller-gen@${DAGGER_CONTROLLER_GEN_SHA}
+        --controller-gen-version=${CONTROLLER_GEN_VERSION}
+        controller-gen --source . --args object:headerFile=hack/boilerplate.go.txt --args paths=./internal/pgbackrest/api/...
+        file --path internal/pgbackrest/api/zz_generated.deepcopy.go export --path internal/pgbackrest/api/zz_generated.deepcopy.go
+      - >
+        GITHUB_REF= dagger -s call -m github.com/cloudnative-pg/daggerverse/controller-gen@${DAGGER_CONTROLLER_GEN_SHA}
+        --controller-gen-version=${CONTROLLER_GEN_VERSION}
         controller-gen --source . --args rbac:roleName=plugin-pgbackrest --args crd --args webhook
         --args paths=./api/... --args paths=./internal/... --args output:crd:artifacts:config=config/crd/bases
         directory --path config/
@@ -347,6 +358,7 @@ tasks:
       - ./internal/**/*.go
     generates:
       - ./api/v1/zz_generated.deepcopy.go
+      - ./internal/pgbackrest/api/zz_generated.deepcopy.go
       - ./config/rbac/role.yaml
       - ./config/crd/bases/*.yaml
 
