@@ -30,9 +30,12 @@
   ],
   semanticCommits: 'enabled',
   commitBodyTable: true,
-  // Allow renovate to update the following types of dependencies in the Taskfile.yml:
-  // - digests for env variables ending in _SHA
-  // - versions for env variables ending in _VERSION
+  // Allow renovate to update the following types of dependencies:
+  // - In Taskfile.yml: digests for env variables ending in _SHA, and versions for env
+  //   variables ending in _VERSION
+  // - In the Makefile: versions for `VAR ?= value` variables ending in _VERSION
+  // The same depName/datasource can appear in both files (e.g. controller-tools); renovate
+  // combines matching updates into a single branch/PR by default, no explicit grouping needed.
   customManagers: [
     {
       customType: 'regex',
@@ -42,6 +45,15 @@
       matchStrings: [
         '# renovate: datasource=(?<datasource>[a-z-.]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?(?: extractVersion=(?<extractVersion>[^\\s]+?))?(?: currentValue=(?<currentValue>[^\\s]+?))?\\s+[A-Za-z0-9_]+?_SHA\\s*:\\s*["\']?(?<currentDigest>[a-f0-9]+?)["\']?\\s',
         '# renovate: datasource=(?<datasource>[a-z-.]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?(?: extractVersion=(?<extractVersion>[^\\s]+?))?\\s+[A-Za-z0-9_]+?_VERSION\\s*:\\s*["\']?(?<currentValue>.+?)["\']?\\s',
+      ],
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/(^Makefile$)/',
+      ],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>[a-z-.]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?(?: extractVersion=(?<extractVersion>[^\\s]+?))?\\s+[A-Za-z0-9_]+?_VERSION\\s*\\?=\\s*(?<currentValue>[^\\s]+)',
       ],
     },
   ],
