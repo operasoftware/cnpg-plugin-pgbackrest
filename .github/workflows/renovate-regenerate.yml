@@ -20,6 +20,13 @@ on:
     types: [opened, synchronize]
     paths:
       - Taskfile.yml
+      # Our CRD types embed types from CNPG's own Go modules (e.g. cloudnative-pg/api).
+      # A version bump there can change generated output even without touching
+      # Taskfile.yml: controller-gen embeds referenced types' full structure *and* Go
+      # doc comments into the CRD schema, so even a docs-only change upstream can
+      # produce a real diff in config/crd/bases and manifest.yaml.
+      - go.mod
+      - go.sum
 
 permissions:
   contents: write
