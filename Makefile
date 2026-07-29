@@ -159,15 +159,17 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 
 ## Tool Versions
+# renovate: datasource=go depName=sigs.k8s.io/kustomize/kustomize/v5 versioning=semver
 KUSTOMIZE_VERSION ?= v5.4.3
 # renovate: datasource=github-tags depName=kubernetes-sigs/controller-tools versioning=semver
 CONTROLLER_TOOLS_VERSION ?= v0.21.0
-# Pinned to an exact tag (not the upstream release-0.19 branch convention) so renovate can
-# track it. Kept in sync with go.mod's sigs.k8s.io/controller-runtime require and
-# Taskfile.yml's SETUP_ENVTEST_VERSION: same depName/datasource, combined into one PR.
+# Kept in sync with go.mod's sigs.k8s.io/controller-runtime require and
+# Taskfile.yml's SETUP_ENVTEST_VERSION: same depName/datasource by renovate.
 # renovate: datasource=go depName=sigs.k8s.io/controller-runtime versioning=semver
 ENVTEST_VERSION ?= v0.19.3
-GOLANGCI_LINT_VERSION ?= v2.1.5
+# Kept in sync with Taskfile by renovate.
+# renovate: datasource=github-tags depName=golangci/golangci-lint versioning=semver
+GOLANGCI_LINT_VERSION ?= v2.12.2
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
