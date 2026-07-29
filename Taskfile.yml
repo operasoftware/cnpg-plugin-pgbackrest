@@ -75,7 +75,10 @@ tasks:
       GOLANG_IMAGE_VERSION: 1.26.4
       # renovate: datasource=github-digest depName=kubernetes packageName=kubernetes/kubernetes versioning=semver
       K8S_VERSION: 1.31.0
-      # renovate: datasource=github-digest depName=controller-runtime packageName=kubernetes-sigs/controller-runtime versioning=semver
+      # Kept in sync with go.mod's sigs.k8s.io/controller-runtime require: same
+      # depName/datasource as the native gomod dependency, so renovate combines both
+      # bumps into a single branch/PR instead of opening two.
+      # renovate: datasource=go depName=sigs.k8s.io/controller-runtime versioning=semver
       SETUP_ENVTEST_VERSION: 0.19.3
     cmds:
       - >
