@@ -22,10 +22,15 @@ tasks:
       DAGGER_GOLANGCI_LINT_SHA: ff27cd50f6b4eed2e3753c520632cd6099e1ce52
       # renovate: datasource=docker depName=golang versioning=semver
       GOLANG_IMAGE_VERSION: 1.26.4
+      # Without an explicit version, this module defaults to the "latest" golangci-lint
+      # image tag, which isn't reproducible across CI runs. Kept in sync with the
+      # Makefile's GOLANGCI_LINT_VERSION: same depName/datasource, combined into one PR.
+      # renovate: datasource=github-tags depName=golangci/golangci-lint versioning=semver
+      GOLANGCI_LINT_VERSION: v2.12.2
     cmds:
       - >
         output=$(GITHUB_REF= dagger -sc "github.com/sagikazarmark/daggerverse/golangci-lint@${DAGGER_GOLANGCI_LINT_SHA}
-        --go-version ${GOLANG_IMAGE_VERSION} |
+        --go-version ${GOLANG_IMAGE_VERSION} --version ${GOLANGCI_LINT_VERSION} |
         run . --config .golangci.yml --raw-args --issues-exit-code=0 |
         stdout");
         if [ "$output" != "0 issues." ]; then echo "output=$output"; exit 1; fi
@@ -417,15 +422,21 @@ tasks:
     env:
       # renovate: datasource=github-digest depName=kustomize lookupName=sagikazarmark/daggerverse currentValue=main
       DAGGER_KUSTOMIZE_SHA: ff27cd50f6b4eed2e3753c520632cd6099e1ce52
+      # Kept in sync with the Makefile's KUSTOMIZE_VERSION: same depName/datasource,
+      # combined into one PR.
+      # renovate: datasource=go depName=sigs.k8s.io/kustomize/kustomize/v5 versioning=semver
+      KUSTOMIZE_VERSION: v5.4.3
     cmds:
       - >
         dagger -s call -m https://github.com/sagikazarmark/daggerverse/kustomize@${DAGGER_KUSTOMIZE_SHA}
+        --version ${KUSTOMIZE_VERSION}
         edit --source . --dir kubernetes
         set image --image plugin-pgbackrest={{.PLUGIN_IMAGE_NAME}}:{{.IMAGE_VERSION}}
         set secret --secret plugin-pgbackrest --from-literal SIDECAR_IMAGE={{.SIDECAR_IMAGE_NAME}}:{{.IMAGE_VERSION}}
         directory directory --path kubernetes export --path manifest-build
       - >
         dagger -s call -m github.com/sagikazarmark/daggerverse/kustomize@${DAGGER_KUSTOMIZE_SHA}
+        --version ${KUSTOMIZE_VERSION}
         build --source . --dir manifest-build export --path manifest.yaml
     sources:
       - ./config/**/*.yaml
