@@ -74,7 +74,3 @@ type ArchiveList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Archive `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&Archive{}, &ArchiveList{})
-}
