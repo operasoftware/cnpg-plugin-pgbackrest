@@ -166,7 +166,7 @@ CONTROLLER_TOOLS_VERSION ?= v0.21.0
 # Kept in sync with go.mod's sigs.k8s.io/controller-runtime require and
 # Taskfile.yml's SETUP_ENVTEST_VERSION: same depName/datasource by renovate.
 # renovate: datasource=go depName=sigs.k8s.io/controller-runtime versioning=semver
-ENVTEST_VERSION ?= v0.19.3
+ENVTEST_VERSION ?= v0.24.1
 # Kept in sync with Taskfile by renovate.
 # renovate: datasource=github-tags depName=golangci/golangci-lint versioning=semver
 GOLANGCI_LINT_VERSION ?= v2.12.2
