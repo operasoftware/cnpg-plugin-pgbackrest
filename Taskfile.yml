@@ -425,7 +425,7 @@ tasks:
       # Kept in sync with the Makefile's KUSTOMIZE_VERSION: same depName/datasource,
       # combined into one PR.
       # renovate: datasource=go depName=sigs.k8s.io/kustomize/kustomize/v5 versioning=semver
-      KUSTOMIZE_VERSION: v5.4.3
+      KUSTOMIZE_VERSION: v5.8.1
     cmds:
       - >
         dagger -s call -m https://github.com/sagikazarmark/daggerverse/kustomize@${DAGGER_KUSTOMIZE_SHA}
