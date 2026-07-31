@@ -79,7 +79,7 @@ tasks:
       # renovate: datasource=docker depName=golang versioning=semver
       GOLANG_IMAGE_VERSION: 1.26.5
       # renovate: datasource=github-digest depName=kubernetes packageName=kubernetes/kubernetes versioning=semver
-      K8S_VERSION: 1.31.0
+      K8S_VERSION: 1.36.2
       # Kept in sync with go.mod's sigs.k8s.io/controller-runtime require: same
       # depName/datasource as the native gomod dependency, so renovate combines both
       # bumps into a single branch/PR instead of opening two.
@@ -282,7 +282,7 @@ tasks:
       # renovate never proposes anything. extractVersion strips the v prefix and -k3sN
       # suffix so comparisons match this file's plain-number convention.
       # renovate: datasource=docker depName=rancher/k3s versioning=semver extractVersion=^v(?<version>\d+\.\d+\.\d+)-k3s\d+$
-      K3S_IMAGE_VERSION: 1.33.1
+      K3S_IMAGE_VERSION: 1.36.2
     env:
       _EXPERIMENTAL_DAGGER_RUNNER_HOST: docker-container://{{ .DAGGER_ENGINE_CONTAINER_NAME }}
     cmds:
