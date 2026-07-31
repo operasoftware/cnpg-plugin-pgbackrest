@@ -276,7 +276,12 @@ tasks:
     vars:
       # renovate: datasource=docker depName=golang versioning=semver
       GOLANG_IMAGE_VERSION: 1.26.5
-      # renovate: datasource=docker depName=k3s  versioning=semver
+      # rancher/k3s tags look like v1.33.1-k3s1 (upstream k8s version + k3s build number).
+      # Without extractVersion, semver treats that "-k3s1" as a prerelease identifier,
+      # so every real tag compares as *older* than the bare version stored below and
+      # renovate never proposes anything. extractVersion strips the v prefix and -k3sN
+      # suffix so comparisons match this file's plain-number convention.
+      # renovate: datasource=docker depName=rancher/k3s versioning=semver extractVersion=^v(?<version>\d+\.\d+\.\d+)-k3s\d+$
       K3S_IMAGE_VERSION: 1.33.1
     env:
       _EXPERIMENTAL_DAGGER_RUNNER_HOST: docker-container://{{ .DAGGER_ENGINE_CONTAINER_NAME }}

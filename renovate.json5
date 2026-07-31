@@ -140,6 +140,29 @@
       minimumReleaseAge: '3 days',
     },
     {
+      // Different projects/sources (vanilla k8s, kind's node image, k3s) tracking
+      // roughly the same Kubernetes version - intentionally not merged into a single
+      // dependency (they have independent release cadences), just batched into one PR
+      // when their updates happen to overlap so they're reviewed together.
+      matchPackageNames: [
+        'kubernetes/kubernetes',
+        'kindest/node',
+        'rancher/k3s',
+      ],
+      groupName: 'kubernetes versions (k8s, kind, k3s)',
+      minimumReleaseAge: '3 days',
+    },
+    {
+      // envtest has no published binaries for 1.36.3 yet, breaking go-test. Scoped to
+      // kubernetes/kubernetes only - kindest/node and rancher/k3s don't use envtest and
+      // aren't affected. Remove once envtest publishes binaries for this version.
+      // allowedVersions can't be combined with matchUpdateTypes in the same rule.
+      matchPackageNames: [
+        'kubernetes/kubernetes',
+      ],
+      allowedVersions: '!/^v?1\\.36\\.3$/',
+    },
+    {
       matchUpdateTypes: [
         'minor',
         'patch',
