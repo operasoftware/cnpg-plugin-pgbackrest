@@ -20,6 +20,7 @@ package archiver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -128,19 +129,30 @@ func (archiver *WALArchiver) ArchiveList(
 	return result
 }
 
-// CheckWalArchiveDestination checks if the destination archive is ready to perform
-// archiving, i.e. if proper stanzas exist.
+// ErrStanzaMissing is returned by CheckWalArchiveDestination when the destination
+// repository is reachable but the pgBackRest stanza has not been created yet. Callers
+// can react to it (create the stanza, or treat the destination as empty) instead of
+// inspecting the "pgbackrest info" output themselves.
+var ErrStanzaMissing = errors.New("pgbackrest stanza has not been created")
+
+// CheckWalArchiveDestination checks that the destination archive is reachable and its
+// stanza exists. It runs "pgbackrest info" (which, unlike stanza-create, does not take
+// the stanza lock) and returns ErrStanzaMissing when the repository is reachable but
+// the stanza has not been created yet.
 func (archiver *WALArchiver) CheckWalArchiveDestination(
 	ctx context.Context,
 	configuration *pgbackrestApi.PgbackrestConfiguration,
 	stanza string,
 	env []string,
 ) error {
-	// Probably the easiest way to check if stanza exists is to run "pgbackrest info".
-	// It's possible to use stanza-create instead but it requires the lock file
-	// which makes it unusable during backups.
-	_, err := pgbackrestCommand.GetBackupList(ctx, configuration, stanza, env)
-	return err
+	destinationCatalog, err := pgbackrestCommand.GetBackupList(ctx, configuration, stanza, env)
+	if err != nil {
+		return err
+	}
+	if destinationCatalog.StanzaMissing() {
+		return ErrStanzaMissing
+	}
+	return nil
 }
 
 // PgbackrestCheckWalArchiveOptions create the options needed for the `pgbackrest check`

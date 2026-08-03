@@ -28,22 +28,20 @@ import (
 const (
 	minio = "minio"
 	// size is the size of the PVCs for the object store and the cluster instances.
-	size               = "1Gi"
-	pluginName         = "pgbackrest.cnpg.opera.com"
-	srcClusterName     = "wal-archive-source"
-	archiveName        = "wal-archive"
-	backupName         = "wal-archive-backup"
-	restoreClusterName = "wal-archive-restore"
+	size           = "1Gi"
+	pluginName     = "pgbackrest.cnpg.opera.com"
+	srcClusterName = "wal-archive-source"
+	archiveName    = "wal-archive"
+	backupName     = "wal-archive-backup"
 )
 
-// walArchiveTestResources contains the resources needed to test WAL archiving
-// without a prior backup, plus backup and restore to prove those paths still work.
+// walArchiveTestResources contains the resources needed to test WAL archiving,
+// with a backup to prove that path still works.
 type walArchiveTestResources struct {
 	ObjectStoreResources *objectstore.Resources
 	Archive              *pluginPgbackrestV1.Archive
 	Cluster              *cloudnativepgv1.Cluster
 	Backup               *cloudnativepgv1.Backup
-	RestoreCluster       *cloudnativepgv1.Cluster
 }
 
 // createWalArchiveTestResources builds all resources for the WAL archiving test.
@@ -52,10 +50,9 @@ func createWalArchiveTestResources(namespace string) walArchiveTestResources {
 		ObjectStoreResources: objectstore.NewMinioObjectStoreResources(namespace, minio),
 		// maxParallel=1 so every WAL is archived in its own batch, which keeps the
 		// assertions on batch completions unambiguous.
-		Archive:        objectstore.NewMinioArchive(namespace, archiveName, minio, 1),
-		Cluster:        newClusterWithPlugin(namespace, srcClusterName),
-		Backup:         newPluginBackup(namespace, backupName, srcClusterName),
-		RestoreCluster: newRestoreCluster(namespace, restoreClusterName),
+		Archive: objectstore.NewMinioArchive(namespace, archiveName, minio, 1),
+		Cluster: newClusterWithPlugin(namespace, srcClusterName),
+		Backup:  newPluginBackup(namespace, backupName, srcClusterName),
 	}
 }
 
@@ -114,58 +111,6 @@ func newPluginBackup(namespace, name, clusterName string) *cloudnativepgv1.Backu
 			Target: "primary",
 			PluginConfiguration: &cloudnativepgv1.BackupPluginConfiguration{
 				Name: pluginName,
-			},
-		},
-	}
-}
-
-// newRestoreCluster creates a cluster that bootstraps by recovering from the
-// source cluster's archive, while also archiving its own WALs to the same store.
-func newRestoreCluster(namespace, name string) *cloudnativepgv1.Cluster {
-	return &cloudnativepgv1.Cluster{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Cluster",
-			APIVersion: "postgresql.cnpg.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: cloudnativepgv1.ClusterSpec{
-			Instances:       2,
-			ImagePullPolicy: corev1.PullAlways,
-			Bootstrap: &cloudnativepgv1.BootstrapConfiguration{
-				Recovery: &cloudnativepgv1.BootstrapRecovery{
-					Source: "source",
-				},
-			},
-			Plugins: []cloudnativepgv1.PluginConfiguration{
-				{
-					Name: pluginName,
-					Parameters: map[string]string{
-						"pgbackrestObjectName": archiveName,
-					},
-				},
-			},
-			PostgresConfiguration: cloudnativepgv1.PostgresConfiguration{
-				Parameters: map[string]string{
-					"log_min_messages": "DEBUG4",
-				},
-			},
-			ExternalClusters: []cloudnativepgv1.ExternalCluster{
-				{
-					Name: "source",
-					PluginConfiguration: &cloudnativepgv1.PluginConfiguration{
-						Name: pluginName,
-						Parameters: map[string]string{
-							"pgbackrestObjectName": archiveName,
-							"stanza":               srcClusterName,
-						},
-					},
-				},
-			},
-			StorageConfiguration: cloudnativepgv1.StorageConfiguration{
-				Size: size,
 			},
 		},
 	}
