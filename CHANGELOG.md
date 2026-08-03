@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.1](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.6.0...v0.6.1) (2026-08-03)
+
+
+### Bug Fixes
+
+* **deps:** Update all non-major go dependencies ([#90](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/90)) ([702bd43](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/702bd43d3a9586453d1e9b476441354e9562c103))
+* **deps:** Update controller-gen in Makefile to 0.19.0 ([1ff3bc0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/1ff3bc0f6be096d9e84798b6ff74b61482c1ab81))
+* **deps:** Update k8s.io/utils digest to cf1189d ([#89](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/89)) ([4b75501](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/4b7550188244aa35951c34bc70dd47ff6a4e60d6))
+* **deps:** Update kubernetes monorepo to v0.36.2 ([#93](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/93)) ([57aae4d](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/57aae4dd0c4638bad8a44c4f2aebaf0973a2e9e9))
+* **deps:** Update module github.com/cert-manager/cert-manager to v1.21.1 ([#128](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/128)) ([07421f9](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/07421f9a1ed4d94219561fcc39a5089c4830599b))
+* **deps:** Update module sigs.k8s.io/controller-runtime to v0.24.1 ([#123](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/123)) ([971a16d](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/971a16d7370acd1c8dbeebb1287a78b8ad864d0b))
+* **deps:** Update module sigs.k8s.io/kustomize/api to v0.21.1 ([#95](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/95)) ([a07d77a](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/a07d77af83997d3188e0c2e1b4e1d467f8d94003))
+* **deps:** Update module sigs.k8s.io/kustomize/kyaml to v0.21.1 ([#96](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/96)) ([61b98a0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/61b98a09ce2d12b01478b98bf44dc8b999fe9068))
+
 ## [0.6.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.5.2...v0.6.0) (2026-05-28)
 
 
