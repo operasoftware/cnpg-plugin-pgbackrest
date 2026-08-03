@@ -320,6 +320,23 @@ type PgbackrestRepository struct {
 	Retention *PgbackrestRetention `json:"retention,omitempty"`
 }
 
+// StanzaCreatePolicy controls when the pgBackRest stanza is created.
+// +kubebuilder:validation:Enum=OnFirstArchive;OnBackup;Disabled
+type StanzaCreatePolicy string
+
+const (
+	// StanzaCreateOnFirstArchive creates the stanza the first time a WAL is archived,
+	// if it does not exist yet, so archiving works without waiting for a backup.
+	StanzaCreateOnFirstArchive StanzaCreatePolicy = "OnFirstArchive"
+
+	// StanzaCreateOnBackup creates the stanza only when a backup runs (the legacy behavior).
+	StanzaCreateOnBackup StanzaCreatePolicy = "OnBackup"
+
+	// StanzaCreateDisabled never creates the stanza automatically; it must be created
+	// out of band.
+	StanzaCreateDisabled StanzaCreatePolicy = "Disabled"
+)
+
 // PgbackrestConfiguration is the configuration of all pgBackRest operations
 type PgbackrestConfiguration struct {
 	Repositories []PgbackrestRepository `json:"repositories"`
@@ -351,6 +368,35 @@ type PgbackrestConfiguration struct {
 	// this parameter is omitted
 	// +optional
 	Stanza string `json:"stanza,omitempty"`
+
+	// CreateStanza controls when the pgBackRest stanza is created. `OnFirstArchive`
+	// (default) creates it on the first WAL archive if it does not exist yet, so
+	// archiving works without a prior backup. `OnBackup` creates it only when a backup
+	// runs. `Disabled` never creates it automatically.
+	// +kubebuilder:validation:Enum=OnFirstArchive;OnBackup;Disabled
+	// +kubebuilder:default=OnFirstArchive
+	// +optional
+	CreateStanza StanzaCreatePolicy `json:"createStanza,omitempty"`
+}
+
+// GetCreateStanzaPolicy returns the configured stanza creation policy, defaulting to
+// OnFirstArchive when unset.
+func (c *PgbackrestConfiguration) GetCreateStanzaPolicy() StanzaCreatePolicy {
+	if c.CreateStanza == "" {
+		return StanzaCreateOnFirstArchive
+	}
+	return c.CreateStanza
+}
+
+// ShouldCreateStanzaOnArchive reports whether the WAL archive path should create the
+// stanza when it is missing.
+func (c *PgbackrestConfiguration) ShouldCreateStanzaOnArchive() bool {
+	return c.GetCreateStanzaPolicy() == StanzaCreateOnFirstArchive
+}
+
+// ShouldCreateStanzaOnBackup reports whether the backup path should create the stanza.
+func (c *PgbackrestConfiguration) ShouldCreateStanzaOnBackup() bool {
+	return c.GetCreateStanzaPolicy() != StanzaCreateDisabled
 }
 
 // ArePopulated checks if the passed set of credentials contains

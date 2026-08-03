@@ -118,10 +118,13 @@ func (b BackupServiceImplementation) Backup(
 		return nil, err
 	}
 
-	err = backupCmd.CreatePgbackrestStanza(ctx, configuration.Stanza, env)
-	if err != nil {
-		contextLogger.Error(err, "while initializing pgbackrest stanza")
-		return nil, err
+	// Create the stanza unless the Archive disables it (createStanza=Disabled), in which
+	// case it is expected to be managed out of band.
+	if archive.Spec.Configuration.ShouldCreateStanzaOnBackup() {
+		if err = backupCmd.CreatePgbackrestStanza(ctx, configuration.Stanza, env); err != nil {
+			contextLogger.Error(err, "while initializing pgbackrest stanza")
+			return nil, err
+		}
 	}
 
 	backupName := fmt.Sprintf("backup-%v", pgTime.ToCompactISO8601(time.Now()))

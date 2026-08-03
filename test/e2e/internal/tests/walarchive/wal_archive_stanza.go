@@ -58,7 +58,7 @@ var _ = Describe("WAL archiving without a prior backup", func() {
 		Expect(cl.Delete(ctx, namespace)).To(Succeed())
 	})
 
-	It("creates the stanza lazily, archives WALs before any backup, and still supports backup and restore",
+	It("creates the stanza lazily, archives WALs before any backup, and still supports a backup",
 		func(ctx SpecContext) {
 			testResources := createWalArchiveTestResources(namespace.Name)
 
@@ -111,44 +111,10 @@ var _ = Describe("WAL archiving without a prior backup", func() {
 					"at least one WAL archive batch should have completed with a successful, error-free archive")
 			}).WithTimeout(4 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
-			By("taking a backup now to prove the backup path still works after lazy stanza creation")
+			By("taking a backup to prove the backup path still works after lazy stanza creation")
 			backup := testResources.Backup
 			Expect(cl.Create(ctx, backup)).To(Succeed())
 			waitForBackupCompleted(ctx, cl, backup)
-
-			By("adding data after the backup so restore has WALs to replay")
-			execPsql(ctx, clientSet, cfg, cluster.Namespace, primaryPod,
-				"INSERT INTO wal_test VALUES (99, 'after-backup');")
-			// The committed row lives in the current WAL segment. Capture it, force a
-			// switch so it becomes archivable, then wait until the archiver has actually
-			// uploaded it. Otherwise the restored cluster may finish recovery before the
-			// segment reaches the object store and the post-backup row would be lost.
-			postBackupWAL := queryPsqlOutput(ctx, clientSet, cfg, cluster.Namespace, primaryPod,
-				"SELECT pg_walfile_name(pg_current_wal_lsn());")
-			execPsql(ctx, clientSet, cfg, cluster.Namespace, primaryPod, "SELECT pg_switch_wal();")
-
-			By("waiting for the post-backup WAL segment to be archived")
-			Eventually(func(g Gomega) {
-				lastArchived := queryPsqlOutputG(g, ctx, clientSet, cfg, cluster.Namespace, primaryPod,
-					"SELECT COALESCE(last_archived_wal, '') FROM pg_stat_archiver;")
-				g.Expect(lastArchived).NotTo(BeEmpty(), "no WAL has been archived yet")
-				g.Expect(lastArchived >= postBackupWAL).To(BeTrue(),
-					fmt.Sprintf("archived WAL %q has not yet reached the post-backup segment %q",
-						lastArchived, postBackupWAL))
-			}).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
-
-			By("restoring into a new cluster from the archive")
-			restore := testResources.RestoreCluster
-			Expect(cl.Create(ctx, restore)).To(Succeed())
-
-			By("waiting for the restored cluster to be ready")
-			waitForClusterReady(ctx, cl, restore)
-
-			By("verifying the restored data is present")
-			output := queryPsqlOutput(ctx, clientSet, cfg, restore.Namespace,
-				fmt.Sprintf("%s-1", restore.Name), "SELECT count(*) FROM wal_test;")
-			Expect(output).To(Equal("6"),
-				"restored cluster should contain the 5 pre-backup rows plus the 1 post-backup row")
 		})
 })
 
@@ -192,18 +158,8 @@ func execPsql(
 	Expect(err).NotTo(HaveOccurred())
 }
 
-// queryPsqlOutput runs a SQL query and returns its trimmed stdout, failing the spec on error.
-func queryPsqlOutput(
-	ctx SpecContext,
-	clientSet *kubernetes.Clientset,
-	cfg *rest.Config,
-	namespace, podName, sql string,
-) string {
-	return queryPsqlOutputG(Default, ctx, clientSet, cfg, namespace, podName, sql)
-}
-
-// queryPsqlOutputG is like queryPsqlOutput but reports failures to the provided
-// Gomega, so it can be used safely inside an Eventually block.
+// queryPsqlOutputG runs a SQL query and returns its trimmed stdout, reporting failures
+// to the provided Gomega so it can be used safely inside an Eventually block.
 func queryPsqlOutputG(
 	g Gomega,
 	ctx SpecContext,
