@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.2](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.6.1...v0.6.2) (2026-08-04)
+
+
+### Bug Fixes
+
+* **deps:** Update module google.golang.org/grpc to v1.83.0 ([#129](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/129)) ([71c3d59](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/71c3d59d41be98a20630fd9cffabaffc3db1353c))
+* **restorer:** Return ErrWALNotFound on archive-get not-found exit ([92d7cf2](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/92d7cf2a5fb226a6bfdded61a02e4bf73e297edc))
+
 ## [0.6.1](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.6.0...v0.6.1) (2026-08-03)
 
 
