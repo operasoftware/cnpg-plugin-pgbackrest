@@ -22,20 +22,24 @@ import (
 	"fmt"
 	"time"
 
+	cnpgv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/postgres"
 	"github.com/cloudnative-pg/cnpg-i-machinery/pkg/pluginhelper/decoder"
 	"github.com/cloudnative-pg/cnpg-i/pkg/backup"
 	"github.com/cloudnative-pg/machinery/pkg/fileutils"
 	"github.com/cloudnative-pg/machinery/pkg/log"
 	pgTime "github.com/cloudnative-pg/machinery/pkg/postgres/time"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/common"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
+	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
 	pgbackrestBackup "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/backup"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/catalog"
+	pgbackrestCommand "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/command"
 	pgbackrestCredentials "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/credentials"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
 )
@@ -103,6 +107,20 @@ func (b BackupServiceImplementation) Backup(
 		b.PGDataPath,
 	)
 
+	// When backup-from-standby is enabled and this instance is a standby, point
+	// pgBackRest at the current primary so both stanza-create and the backup can
+	// coordinate control operations there.
+	standbyTopology, err := b.resolveStandbyTopology(ctx, configuration.Cluster, &archive.Spec.Configuration)
+	if err != nil {
+		contextLogger.Error(err, "while resolving backup-from-standby topology")
+		return nil, err
+	}
+	if standbyTopology != nil {
+		contextLogger.Info("Taking backup from standby",
+			"primaryHost", standbyTopology.PrimaryHost)
+		backupCmd = backupCmd.WithStandbyBackup(standbyTopology)
+	}
+
 	// We need to connect to PostgreSQL and to do that we need
 	// PGHOST (and the like) to be available
 	osEnvironment := utils.SanitizedEnviron()
@@ -164,5 +182,55 @@ func (b BackupServiceImplementation) Backup(
 			"name":        metadata.Data.Name,
 			"displayName": metadata.Data.DisplayName,
 		},
+	}, nil
+}
+
+// resolveStandbyTopology returns the topology needed to take this backup from a
+// standby, or nil when a normal (local/primary) backup should be taken. It
+// returns nil when the feature is disabled, or when this instance is the
+// primary (or no primary is known yet). When this instance is a standby with a
+// known primary, it resolves the primary pod's IP so pgBackRest can reach the
+// primary's TLS server.
+func (b BackupServiceImplementation) resolveStandbyTopology(
+	ctx context.Context,
+	cluster *cnpgv1.Cluster,
+	cfg *pgbackrestApi.PgbackrestConfiguration,
+) (*pgbackrestCommand.StandbyBackupTopology, error) {
+	contextLogger := log.FromContext(ctx)
+
+	enabled := cfg.IsBackupStandbyEnabled()
+	currentPrimary := cluster.Status.CurrentPrimary
+	if !pgbackrestCommand.ShouldConfigurePrimaryPeer(enabled, currentPrimary, b.InstanceName) {
+		if enabled {
+			// Feature enabled but this instance is the primary (or no primary is
+			// known yet): fall back to a normal local backup.
+			contextLogger.Info(
+				"backup-from-standby enabled but this instance is not a standby; taking a local backup",
+				"instance", b.InstanceName, "currentPrimary", currentPrimary)
+		}
+		return nil, nil
+	}
+
+	// Resolve the primary pod's IP so pgBackRest can reach its TLS server. This
+	// is a direct (uncached) read: Pod is in the manager cache DisableFor list,
+	// so it needs only "get pods", not a cluster-wide Pod informer. Using the pod
+	// IP is one discovery approach; a dedicated headless service is an
+	// alternative left open in issue #103.
+	var primaryPod corev1.Pod
+	key := client.ObjectKey{Namespace: cluster.Namespace, Name: currentPrimary}
+	if err := b.Client.Get(ctx, key, &primaryPod); err != nil {
+		return nil, fmt.Errorf("while getting primary pod %q: %w", currentPrimary, err)
+	}
+	if primaryPod.Status.PodIP == "" {
+		return nil, fmt.Errorf("primary pod %q has no IP address yet", currentPrimary)
+	}
+
+	return &pgbackrestCommand.StandbyBackupTopology{
+		PrimaryHost:   primaryPod.Status.PodIP,
+		PrimaryPort:   pgbackrestCommand.DefaultServerPort,
+		PrimaryPGData: b.PGDataPath,
+		CertFile:      pgbackrestCommand.DefaultTLSCertFile,
+		KeyFile:       pgbackrestCommand.DefaultTLSKeyFile,
+		CAFile:        pgbackrestCommand.DefaultTLSCAFile,
 	}, nil
 }

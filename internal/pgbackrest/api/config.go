@@ -320,6 +320,49 @@ type PgbackrestRepository struct {
 	Retention *PgbackrestRetention `json:"retention,omitempty"`
 }
 
+// BackupStandbyConfiguration configures taking backups from a standby instead of
+// the primary, offloading the backup I/O from the primary. It relies on a
+// pgBackRest TLS server running on the instances (pgBackRest multi-host TLS). When
+// enabled, the plugin provisions the resources this needs unless the injection
+// opt-outs below turn that off.
+//
+// Whether a given backup actually runs on a standby is decided by CloudNativePG
+// via the Backup/ScheduledBackup target, not here: the plugin adds the primary as a
+// second host and passes --backup-standby only when the backup lands on a replica.
+//
+// Experimental, see https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/103
+type BackupStandbyConfiguration struct {
+	// Enabled turns on backup-from-standby.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// InjectService controls whether the plugin injects the headless service that
+	// exposes the pgBackRest TLS server port on the instances. Defaults to true; set
+	// to false to manage that service yourself.
+	// +kubebuilder:default=true
+	// +optional
+	InjectService *bool `json:"injectService,omitempty"`
+
+	// InjectSAN controls whether the plugin adds the pgBackRest service DNS name to
+	// the cluster server certificate (serverAltDNSNames). Defaults to true; set to
+	// false to manage the SAN yourself.
+	// +kubebuilder:default=true
+	// +optional
+	InjectSAN *bool `json:"injectSAN,omitempty"`
+}
+
+// ShouldInjectService reports whether the plugin should inject the pgBackRest
+// headless service (defaults to true when unset).
+func (s *BackupStandbyConfiguration) ShouldInjectService() bool {
+	return s == nil || s.InjectService == nil || *s.InjectService
+}
+
+// ShouldInjectSAN reports whether the plugin should inject the pgBackRest service
+// SAN into the cluster server certificate (defaults to true when unset).
+func (s *BackupStandbyConfiguration) ShouldInjectSAN() bool {
+	return s == nil || s.InjectSAN == nil || *s.InjectSAN
+}
+
 // PgbackrestConfiguration is the configuration of all pgBackRest operations
 type PgbackrestConfiguration struct {
 	Repositories []PgbackrestRepository `json:"repositories"`
@@ -351,6 +394,16 @@ type PgbackrestConfiguration struct {
 	// this parameter is omitted
 	// +optional
 	Stanza string `json:"stanza,omitempty"`
+
+	// BackupStandby, when enabled, offloads backups to a standby instance using
+	// pgBackRest multi-host TLS. See BackupStandbyConfiguration.
+	// +optional
+	BackupStandby *BackupStandbyConfiguration `json:"backupStandby,omitempty"`
+}
+
+// IsBackupStandbyEnabled reports whether backup-from-standby is enabled.
+func (configuration *PgbackrestConfiguration) IsBackupStandbyEnabled() bool {
+	return configuration.BackupStandby != nil && configuration.BackupStandby.Enabled
 }
 
 // ArePopulated checks if the passed set of credentials contains
