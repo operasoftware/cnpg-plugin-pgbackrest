@@ -53,6 +53,18 @@ spec:
                     - lz4
                     - zst
                     type: string
+                  createStanza:
+                    default: OnFirstArchive
+                    description: |-
+                      CreateStanza controls when the pgBackRest stanza is created. `OnFirstArchive`
+                      (default) creates it on the first WAL archive if it does not exist yet, so
+                      archiving works without a prior backup. `OnBackup` creates it only when a backup
+                      runs. `Disabled` never creates it automatically.
+                    enum:
+                    - OnFirstArchive
+                    - OnBackup
+                    - Disabled
+                    type: string
                   data:
                     description: |-
                       The configuration to be used to backup the data files

@@ -19,6 +19,7 @@ package restore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -247,7 +248,13 @@ func (impl *JobHookImpl) checkBackupDestination(
 	}
 
 	if utils.IsEmptyWalArchiveCheckEnabled(&cluster.ObjectMeta) {
-		return walArchiver.CheckWalArchiveDestination(ctx, pgbackrestConfiguration, stanza, env)
+		err := walArchiver.CheckWalArchiveDestination(ctx, pgbackrestConfiguration, stanza, env)
+		if errors.Is(err, pgbackrestArchiver.ErrStanzaMissing) {
+			// A reachable but not-yet-created stanza is a legitimate empty destination for
+			// a cluster about to start archiving; treat it as OK.
+			return nil
+		}
+		return err
 	}
 
 	return nil
