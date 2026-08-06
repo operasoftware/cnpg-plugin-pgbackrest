@@ -45,7 +45,7 @@ var _ = Describe("pgbackrestWalRestoreOptions", func() {
 		Expect(strings.Join(options, " ")).
 			To(
 				Equal(
-					"--repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --pg1-path /var/lib/postgres/pgdata --stanza test-cluster",
+					"--repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --pg1-path /var/lib/postgres/pgdata --log-level-file off --stanza test-cluster",
 				))
 	})
 
@@ -59,7 +59,7 @@ var _ = Describe("pgbackrestWalRestoreOptions", func() {
 		Expect(strings.Join(options, " ")).
 			To(
 				Equal(
-					"--repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --pg1-path /var/lib/postgres/pgdata --stanza test-cluster --protocol-timeout=60",
+					"--repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --pg1-path /var/lib/postgres/pgdata --log-level-file off --stanza test-cluster --protocol-timeout=60",
 				))
 	})
 })
