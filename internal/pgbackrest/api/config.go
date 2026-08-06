@@ -71,6 +71,18 @@ const (
 	KeyTypeWebID = KeyType("web-id")
 )
 
+// URIStyleType is the URI addressing style for S3-compatible repositories
+type URIStyleType string
+
+const (
+	// URIStyleHost uses virtual-hosted-style URIs (default): <bucket>.<endpoint>/key
+	URIStyleHost = URIStyleType("host")
+	// URIStylePath uses path-style URIs: <endpoint>/<bucket>/key
+	// Required for S3-compatible stores (e.g. MinIO) hosted at internal cluster endpoints
+	// that do not resolve virtual-hosted-style DNS names.
+	URIStylePath = URIStyleType("path")
+)
+
 // S3Credentials is the type for the credentials to be used to upload
 // files to S3. It can be provided in two alternative ways:
 //
@@ -96,10 +108,12 @@ type S3Credentials struct {
 	// +kubebuilder:validation:MinLength=1
 	Region string `json:"region,omitempty"`
 
-	// S3 Repository URI style, either "host" (default) or "path".
-	// TODO: Enforce values via Enum like iin compression.
+	// S3 Repository URI style. Use "path" for S3-compatible stores (e.g. MinIO) at
+	// internal endpoints that cannot resolve virtual-hosted-style DNS names.
+	// Defaults to pgbackrest's own default ("host") when unset.
+	// +kubebuilder:validation:Enum=host;path
 	// +optional
-	URIStyle string `json:"uriStyle,omitempty"`
+	URIStyle URIStyleType `json:"uriStyle,omitempty"`
 }
 
 // PgbackrestCredentials an object containing the potential credentials for each cloud provider

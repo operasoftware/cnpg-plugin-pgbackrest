@@ -181,7 +181,7 @@ func appendCloudProviderOptions(
 			options = append(
 				options,
 				utils.FormatRepoFlag(repoIndex, "s3-uri-style"),
-				repository.AWS.URIStyle)
+				string(repository.AWS.URIStyle))
 		}
 	}
 	return options, nil
