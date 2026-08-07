@@ -282,7 +282,7 @@ tasks:
       # renovate never proposes anything. extractVersion strips the v prefix and -k3sN
       # suffix so comparisons match this file's plain-number convention.
       # renovate: datasource=docker depName=rancher/k3s versioning=semver extractVersion=^v(?<version>\d+\.\d+\.\d+)-k3s\d+$
-      K3S_IMAGE_VERSION: 1.36.2
+      K3S_IMAGE_VERSION: 1.36.3
     env:
       _EXPERIMENTAL_DAGGER_RUNNER_HOST: docker-container://{{ .DAGGER_ENGINE_CONTAINER_NAME }}
     cmds:
