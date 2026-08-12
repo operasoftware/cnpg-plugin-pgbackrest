@@ -113,6 +113,28 @@ spec:
                           pgbackrest --annotation option.
                         type: object
                     type: object
+                  log:
+                    description: |-
+                      The logging configuration for pgBackRest commands invoked by the plugin
+                      (backup, restore, stanza-create, info, archive-push, and archive-get).
+                      When not defined, stderr logging is set to "warn". Console (stdout)
+                      logging is always pinned to "off" so that the JSON emitted by
+                      "info --output=json" stays parseable.
+                    properties:
+                      levelStderr:
+                        description: |-
+                          Log level for messages written to stderr.
+                          Defaults to "warn".
+                        enum:
+                        - "off"
+                        - error
+                        - warn
+                        - info
+                        - detail
+                        - debug
+                        - trace
+                        type: string
+                    type: object
                   repositories:
                     items:
                       description: |-

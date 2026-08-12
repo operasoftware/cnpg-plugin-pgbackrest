@@ -146,6 +146,11 @@ func (archiver *WALArchiver) PgbackrestWalArchiveOptions(
 		return nil, err
 	}
 
+	options, err = pgbackrestCommand.AppendLogOptionsFromConfiguration(ctx, options, configuration)
+	if err != nil {
+		return nil, err
+	}
+
 	serverName := clusterName
 	if len(configuration.Stanza) != 0 {
 		serverName = configuration.Stanza

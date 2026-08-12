@@ -43,6 +43,11 @@ func CloudWalRestoreOptions(
 		return nil, err
 	}
 
+	options, err = AppendLogOptionsFromConfiguration(ctx, options, configuration)
+	if err != nil {
+		return nil, err
+	}
+
 	stanza := clusterName
 	if len(configuration.Stanza) != 0 {
 		stanza = configuration.Stanza
@@ -230,28 +235,43 @@ func appendStanzaOptions(
 	return options, nil
 }
 
-// AppendLogOptionsFromConfiguration takes an options array and adds the necessary
-// stanza-specific options required for all operations connecting to the database
+// AppendLogOptionsFromConfiguration takes an options array and adds the pgbackrest
+// logging options, honoring the optional log configuration or falling back to defaults.
 func AppendLogOptionsFromConfiguration(
 	ctx context.Context,
 	options []string,
-	configuration *pgbackrestApi.PgbackrestConfiguration, // nolint: revive
+	configuration *pgbackrestApi.PgbackrestConfiguration,
 ) (resOptions []string, err error) {
-	return appendLogOptions(ctx, options)
+	return appendLogOptions(ctx, options, configuration)
 }
 
-// appendLogOptions takes an options array and adds the stanza-specific pgbackrest
-// options required for all operations connecting to the database
+// appendLogOptions takes an options array and adds the pgbackrest logging options.
+// When no log configuration is provided it preserves the historical defaults:
+// stderr at "warn".
+//
+// Console logging is always pinned to "off" and is deliberately not
+// configurable: the plugin reserves stdout for the machine-readable JSON emitted
+// by "info --output=json", so any console output would corrupt catalog parsing.
+// pgBackRest's own default for log-level-console is "warn", so we must pass the
+// flag explicitly rather than rely on the default.
 func appendLogOptions(
 	_ context.Context,
 	options []string,
+	configuration *pgbackrestApi.PgbackrestConfiguration,
 ) ([]string, error) {
-	// TODO: Those options likely shouldn't be hardcoded.
-	// TODO: Maybe configure log path to a writable directory?
+	stderrLevel := "warn"
+
+	if configuration != nil {
+		logConfig := configuration.Log
+		if logConfig != nil && logConfig.LevelStderr != "" {
+			stderrLevel = logConfig.LevelStderr
+		}
+	}
+
 	options = append(
 		options,
 		"--log-level-stderr",
-		"warn",
+		stderrLevel,
 		"--log-level-console",
 		"off",
 	)

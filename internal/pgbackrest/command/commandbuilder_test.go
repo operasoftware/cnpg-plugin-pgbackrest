@@ -18,6 +18,8 @@ limitations under the License.
 package command
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
 	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
@@ -45,8 +47,18 @@ var _ = Describe("pgbackrestWalRestoreOptions", func() {
 		Expect(strings.Join(options, " ")).
 			To(
 				Equal(
-					"--repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --pg1-path /var/lib/postgres/pgdata --stanza test-cluster",
+					"--repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --pg1-path /var/lib/postgres/pgdata --log-level-stderr warn --log-level-console off --stanza test-cluster",
 				))
+	})
+
+	It("should honor configured stderr log level", func(ctx SpecContext) {
+		storageConf.Log = &pgbackrestApi.LogConfiguration{
+			LevelStderr: "trace",
+		}
+		options, err := CloudWalRestoreOptions(ctx, storageConf, "test-cluster", "/var/lib/postgres/pgdata")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).
+			To(ContainSubstring("--log-level-stderr trace --log-level-console off"))
 	})
 
 	It("should generate correct arguments", func(ctx SpecContext) {
@@ -59,9 +71,69 @@ var _ = Describe("pgbackrestWalRestoreOptions", func() {
 		Expect(strings.Join(options, " ")).
 			To(
 				Equal(
-					"--repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --pg1-path /var/lib/postgres/pgdata --stanza test-cluster --protocol-timeout=60",
+					"--repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --pg1-path /var/lib/postgres/pgdata --log-level-stderr warn --log-level-console off --stanza test-cluster --protocol-timeout=60",
 				))
 	})
+})
+
+var _ = Describe("appendLogOptions", func() {
+	It("should use the default log levels when no log configuration is provided", func(ctx SpecContext) {
+		config := &pgbackrestApi.PgbackrestConfiguration{}
+		options, err := appendLogOptions(ctx, nil, config)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).
+			To(Equal("--log-level-stderr warn --log-level-console off"))
+	})
+
+	It("should honor the configured stderr log level while keeping console off", func(ctx SpecContext) {
+		config := &pgbackrestApi.PgbackrestConfiguration{
+			Log: &pgbackrestApi.LogConfiguration{
+				LevelStderr: "debug",
+			},
+		}
+		options, err := appendLogOptions(ctx, nil, config)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).
+			To(Equal("--log-level-stderr debug --log-level-console off"))
+	})
+
+	It("should default to warn when log configuration is present but levelStderr is empty", func(ctx SpecContext) {
+		config := &pgbackrestApi.PgbackrestConfiguration{
+			Log: &pgbackrestApi.LogConfiguration{},
+		}
+		options, err := appendLogOptions(ctx, nil, config)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).
+			To(Equal("--log-level-stderr warn --log-level-console off"))
+	})
+
+	It("should default to warn when configuration is nil", func(ctx SpecContext) {
+		options, err := appendLogOptions(ctx, nil, nil)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).
+			To(Equal("--log-level-stderr warn --log-level-console off"))
+	})
+
+	DescribeTable("should accept all supported stderr log levels",
+		func(level string) {
+			config := &pgbackrestApi.PgbackrestConfiguration{
+				Log: &pgbackrestApi.LogConfiguration{
+					LevelStderr: level,
+				},
+			}
+			options, err := appendLogOptions(context.Background(), nil, config)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(strings.Join(options, " ")).
+				To(Equal(fmt.Sprintf("--log-level-stderr %s --log-level-console off", level)))
+		},
+		Entry("off", "off"),
+		Entry("error", "error"),
+		Entry("warn", "warn"),
+		Entry("info", "info"),
+		Entry("detail", "detail"),
+		Entry("debug", "debug"),
+		Entry("trace", "trace"),
+	)
 })
 
 var _ = Describe("PgbackrestRetention", func() {
