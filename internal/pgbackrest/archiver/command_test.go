@@ -72,8 +72,21 @@ var _ = Describe("pgbackrestWalArchiveOptions", func() {
 		Expect(strings.Join(options, " ")).
 			To(
 				Equal(
-					"--compress-type gzip --buffer-size=5MB --io-timeout=60 --repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --stanza test-cluster",
+					"--compress-type gzip --buffer-size=5MB --io-timeout=60 --repo1-type s3 --repo1-s3-bucket bucket-name --repo1-path / --log-level-stderr warn --log-level-console off --stanza test-cluster",
 				))
+	})
+
+	It("should honor configured stderr log level", func(ctx SpecContext) {
+		archiver, err := New(ctx, nil, "/tmp/pgbackrest-test-spool", "pgdata", tempEmptyWalArchivePath)
+		Expect(err).ToNot(HaveOccurred())
+
+		config.Log = &pgbackrestApi.LogConfiguration{
+			LevelStderr: "debug",
+		}
+		options, err := archiver.PgbackrestWalArchiveOptions(ctx, config, "test-cluster")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).
+			To(ContainSubstring("--log-level-stderr debug --log-level-console off"))
 	})
 })
 

@@ -253,6 +253,20 @@ type DataBackupConfiguration struct {
 	AdditionalCommandArgs []string `json:"additionalCommandArgs,omitempty"`
 }
 
+// LogConfiguration controls pgBackRest stderr logging verbosity.
+// All fields are optional.
+//
+// Console (stdout) logging is intentionally not configurable: the plugin
+// reserves stdout for the machine-readable JSON emitted by "info --output=json".
+// Use LevelStderr for pod-log verbosity (defaults to "warn" when unset).
+type LogConfiguration struct {
+	// Log level for messages written to stderr.
+	// Defaults to "warn".
+	// +optional
+	// +kubebuilder:validation:Enum=off;error;warn;info;detail;debug;trace
+	LevelStderr string `json:"levelStderr,omitempty"`
+}
+
 // DataRestoreConfiguration is the configuration of the main backup restore process
 // (pgbackrest restore call) which is then followed by a series of WAL restore
 // (pgbackrest archive-get) calls using the WalBackupConfiguration
@@ -369,6 +383,13 @@ type PgbackrestConfiguration struct {
 	// +optional
 	Stanza string `json:"stanza,omitempty"`
 
+	// The logging configuration for pgBackRest commands invoked by the plugin
+	// (backup, restore, stanza-create, info, archive-push, and archive-get).
+	// When not defined, stderr logging is set to "warn". Console (stdout)
+	// logging is always pinned to "off" so that the JSON emitted by
+	// "info --output=json" stays parseable.
+	// +optional
+	Log *LogConfiguration `json:"log,omitempty"`
 	// CreateStanza controls when the pgBackRest stanza is created. `OnFirstArchive`
 	// (default) creates it on the first WAL archive if it does not exist yet, so
 	// archiving works without a prior backup. `OnBackup` creates it only when a backup

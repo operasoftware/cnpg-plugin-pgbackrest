@@ -105,3 +105,31 @@ func FindLogEntriesByMessage(logEntries []map[string]any, message string) []map[
 
 	return matches
 }
+
+// FindPgbackrestCommandOptions scans the structured log entries for pgbackrest command
+// invocations (which the plugin logs together with an "options" field) and returns each
+// invocation's options joined into a single space-separated string. This makes it easy to
+// assert on the exact flags the plugin passed to pgbackrest.
+func FindPgbackrestCommandOptions(logEntries []map[string]any) []string {
+	var commands []string
+
+	for _, logEntry := range logEntries {
+		rawOptions, ok := logEntry["options"].([]any)
+		if !ok {
+			continue
+		}
+
+		options := make([]string, 0, len(rawOptions))
+		for _, rawOption := range rawOptions {
+			if option, ok := rawOption.(string); ok {
+				options = append(options, option)
+			}
+		}
+
+		if len(options) > 0 {
+			commands = append(commands, strings.Join(options, " "))
+		}
+	}
+
+	return commands
+}
