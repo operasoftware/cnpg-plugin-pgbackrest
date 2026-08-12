@@ -97,8 +97,43 @@ type S3Credentials struct {
 	Region string `json:"region,omitempty"`
 
 	// S3 Repository URI style, either "host" (default) or "path".
-	// TODO: Enforce values via Enum like iin compression.
 	// +optional
+	// +kubebuilder:validation:Enum=host;path
+	URIStyle string `json:"uriStyle,omitempty"`
+}
+
+// AzureKeyType is the type of key used for Azure credentials
+type AzureKeyType string
+
+const (
+	// AzureKeyTypeShared uses a storage account shared key
+	AzureKeyTypeShared = AzureKeyType("shared")
+	// AzureKeyTypeSAS uses a shared access signature token
+	AzureKeyTypeSAS = AzureKeyType("sas")
+)
+
+// AzureCredentials is the type for the credentials to be used to upload
+// files to Azure Blob Storage.
+type AzureCredentials struct {
+	// KeyType specifies the type of key used, either "shared" (default) or "sas"
+	// +optional
+	// +kubebuilder:default:=shared
+	// +kubebuilder:validation:Enum=shared;sas
+	KeyType AzureKeyType `json:"keyType,omitempty"`
+
+	// The reference to the secret containing the storage account name
+	// +optional
+	Account *machineryapi.SecretKeySelector `json:"account,omitempty"`
+
+	// The reference to the secret containing the account shared key or SAS token
+	// +optional
+	Key *machineryapi.SecretKeySelector `json:"key,omitempty"`
+
+	// Azure Repository URI style, either "host" (default) or "path".
+	// The "path" style is required when targeting Azure-compatible
+	// endpoints such as the Azurite emulator.
+	// +optional
+	// +kubebuilder:validation:Enum=host;path
 	URIStyle string `json:"uriStyle,omitempty"`
 }
 
@@ -107,6 +142,17 @@ type PgbackrestCredentials struct {
 	// The credentials to use to upload data to S3
 	// +optional
 	AWS *S3Credentials `json:"s3Credentials,omitempty"`
+
+	// The credentials to use to upload data to Azure Blob Storage
+	// +optional
+	Azure *AzureCredentials `json:"azureCredentials,omitempty"`
+}
+
+// HasConflictingCloudProviders reports whether more than one cloud provider
+// credential block is configured. A single pgBackRest repository can only
+// target one storage type, so having both set is an invalid configuration.
+func (c PgbackrestCredentials) HasConflictingCloudProviders() bool {
+	return c.AWS != nil && c.Azure != nil
 }
 
 // PgbackrestRetention an object containing the backup retention time for all backup
@@ -320,23 +366,6 @@ type PgbackrestRepository struct {
 	Retention *PgbackrestRetention `json:"retention,omitempty"`
 }
 
-// StanzaCreatePolicy controls when the pgBackRest stanza is created.
-// +kubebuilder:validation:Enum=OnFirstArchive;OnBackup;Disabled
-type StanzaCreatePolicy string
-
-const (
-	// StanzaCreateOnFirstArchive creates the stanza the first time a WAL is archived,
-	// if it does not exist yet, so archiving works without waiting for a backup.
-	StanzaCreateOnFirstArchive StanzaCreatePolicy = "OnFirstArchive"
-
-	// StanzaCreateOnBackup creates the stanza only when a backup runs (the legacy behavior).
-	StanzaCreateOnBackup StanzaCreatePolicy = "OnBackup"
-
-	// StanzaCreateDisabled never creates the stanza automatically; it must be created
-	// out of band.
-	StanzaCreateDisabled StanzaCreatePolicy = "Disabled"
-)
-
 // PgbackrestConfiguration is the configuration of all pgBackRest operations
 type PgbackrestConfiguration struct {
 	Repositories []PgbackrestRepository `json:"repositories"`
@@ -368,41 +397,12 @@ type PgbackrestConfiguration struct {
 	// this parameter is omitted
 	// +optional
 	Stanza string `json:"stanza,omitempty"`
-
-	// CreateStanza controls when the pgBackRest stanza is created. `OnFirstArchive`
-	// (default) creates it on the first WAL archive if it does not exist yet, so
-	// archiving works without a prior backup. `OnBackup` creates it only when a backup
-	// runs. `Disabled` never creates it automatically.
-	// +kubebuilder:validation:Enum=OnFirstArchive;OnBackup;Disabled
-	// +kubebuilder:default=OnFirstArchive
-	// +optional
-	CreateStanza StanzaCreatePolicy `json:"createStanza,omitempty"`
-}
-
-// GetCreateStanzaPolicy returns the configured stanza creation policy, defaulting to
-// OnFirstArchive when unset.
-func (c *PgbackrestConfiguration) GetCreateStanzaPolicy() StanzaCreatePolicy {
-	if c.CreateStanza == "" {
-		return StanzaCreateOnFirstArchive
-	}
-	return c.CreateStanza
-}
-
-// ShouldCreateStanzaOnArchive reports whether the WAL archive path should create the
-// stanza when it is missing.
-func (c *PgbackrestConfiguration) ShouldCreateStanzaOnArchive() bool {
-	return c.GetCreateStanzaPolicy() == StanzaCreateOnFirstArchive
-}
-
-// ShouldCreateStanzaOnBackup reports whether the backup path should create the stanza.
-func (c *PgbackrestConfiguration) ShouldCreateStanzaOnBackup() bool {
-	return c.GetCreateStanzaPolicy() != StanzaCreateDisabled
 }
 
 // ArePopulated checks if the passed set of credentials contains
 // something
 func (credentials PgbackrestCredentials) ArePopulated() bool {
-	return credentials.AWS != nil
+	return credentials.AWS != nil || credentials.Azure != nil
 }
 
 // AppendAdditionalRestoreCommandArgs adds custom arguments as pgbackrest restore command-line options

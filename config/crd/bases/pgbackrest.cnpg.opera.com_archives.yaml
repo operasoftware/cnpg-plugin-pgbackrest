@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.19.0
   name: archives.pgbackrest.cnpg.opera.com
 spec:
   group: pgbackrest.cnpg.opera.com
@@ -52,18 +52,6 @@ spec:
                     - bz2
                     - lz4
                     - zst
-                    type: string
-                  createStanza:
-                    default: OnFirstArchive
-                    description: |-
-                      CreateStanza controls when the pgBackRest stanza is created. `OnFirstArchive`
-                      (default) creates it on the first WAL archive if it does not exist yet, so
-                      archiving works without a prior backup. `OnBackup` creates it only when a backup
-                      runs. `Disabled` never creates it automatically.
-                    enum:
-                    - OnFirstArchive
-                    - OnBackup
-                    - Disabled
                     type: string
                   data:
                     description: |-
@@ -121,6 +109,56 @@ spec:
                         repository, including all data needed to properly connect and authenticate with
                         a selected object store.
                       properties:
+                        azureCredentials:
+                          description: The credentials to use to upload data to Azure
+                            Blob Storage
+                          properties:
+                            account:
+                              description: The reference to the secret containing
+                                the storage account name
+                              properties:
+                                key:
+                                  description: The key to select
+                                  type: string
+                                name:
+                                  description: Name of the referent.
+                                  type: string
+                              required:
+                              - key
+                              - name
+                              type: object
+                            key:
+                              description: The reference to the secret containing
+                                the account shared key or SAS token
+                              properties:
+                                key:
+                                  description: The key to select
+                                  type: string
+                                name:
+                                  description: Name of the referent.
+                                  type: string
+                              required:
+                              - key
+                              - name
+                              type: object
+                            keyType:
+                              default: shared
+                              description: KeyType specifies the type of key used,
+                                either "shared" (default) or "sas"
+                              enum:
+                              - shared
+                              - sas
+                              type: string
+                            uriStyle:
+                              description: |-
+                                Azure Repository URI style, either "host" (default) or "path".
+                                The "path" style is required when targeting Azure-compatible
+                                endpoints such as the Azurite emulator.
+                              enum:
+                              - host
+                              - path
+                              type: string
+                          type: object
                         bucket:
                           minLength: 1
                           type: string
@@ -293,6 +331,9 @@ spec:
                             uriStyle:
                               description: S3 Repository URI style, either "host"
                                 (default) or "path".
+                              enum:
+                              - host
+                              - path
                               type: string
                           type: object
                       required:
@@ -679,6 +720,7 @@ spec:
                           procMount denotes the type of proc mount to use for the containers.
                           The default value is Default which uses the container runtime defaults for
                           readonly paths and masked paths.
+                          This requires the ProcMountType feature flag to be enabled.
                           Note that this field cannot be set when spec.os.name is windows.
                         type: string
                       readOnlyRootFilesystem:

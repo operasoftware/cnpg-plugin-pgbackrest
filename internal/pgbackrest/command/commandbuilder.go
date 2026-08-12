@@ -156,7 +156,20 @@ func appendCloudProviderOptions(
 	options []string,
 	repoIndex int,
 	repository pgbackrestApi.PgbackrestRepository,
-) ([]string, error) { // nolint: unparam
+) ([]string, error) {
+	// A single pgBackRest repository can only target one storage type. If both
+	// credential blocks are set the configuration is ambiguous, so fail fast
+	// instead of silently letting one provider win.
+	if repository.HasConflictingCloudProviders() {
+		return nil, fmt.Errorf(
+			"repository \"repo%d\" has both s3Credentials and azureCredentials set; "+
+				"exactly one storage type must be configured per repository",
+			repoIndex+1,
+		)
+	}
+	if repository.Azure != nil {
+		return appendAzureOptions(options, repoIndex, repository), nil
+	}
 	options = append(
 		options,
 		utils.FormatRepoFlag(repoIndex, "type"),
@@ -185,6 +198,38 @@ func appendCloudProviderOptions(
 		}
 	}
 	return options, nil
+}
+
+// appendAzureOptions adds the pgbackrest options required to use an Azure Blob Storage repository
+func appendAzureOptions(
+	options []string,
+	repoIndex int,
+	repository pgbackrestApi.PgbackrestRepository,
+) []string {
+	options = append(
+		options,
+		utils.FormatRepoFlag(repoIndex, "type"),
+		"azure")
+	// The azure-endpoint override is intentionally not passed on the command line:
+	// pgBackRest rejects "repoN-azure-endpoint" as a CLI option (it could expose
+	// secrets in the process list). It is provided via the PGBACKREST_REPON_AZURE_ENDPOINT
+	// environment variable instead (see the credentials package).
+	if repository.DisableVerifyTLS {
+		options = append(
+			options,
+			utils.FormatRepoFlag(repoIndex, "storage-verify-tls=n"))
+	}
+	options = append(options,
+		utils.FormatRepoFlag(repoIndex, "azure-container"), repository.Bucket,
+		utils.FormatRepoFlag(repoIndex, "path"), repository.DestinationPath,
+	)
+	if repository.Azure != nil && len(repository.Azure.URIStyle) > 0 {
+		options = append(
+			options,
+			utils.FormatRepoFlag(repoIndex, "azure-uri-style"),
+			repository.Azure.URIStyle)
+	}
+	return options
 }
 
 // AppendStanzaOptionsFromConfiguration takes an options array and adds the necessary

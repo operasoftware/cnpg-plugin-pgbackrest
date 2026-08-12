@@ -107,8 +107,24 @@ func envSetCloudCredentials(
 	env []string,
 ) (envs []string, err error) {
 	for index, repo := range configuration.Repositories {
+		// A single pgBackRest repository can only target one storage type.
+		// Reject configurations that set multiple credential blocks so we
+		// don't inject conflicting env vars for the same repo.
+		if repo.HasConflictingCloudProviders() {
+			return nil, fmt.Errorf(
+				"repository \"repo%d\" has both s3Credentials and azureCredentials set; "+
+					"exactly one storage type must be configured per repository",
+				index+1,
+			)
+		}
 		if repo.AWS != nil {
 			env, err = envSetAWSCredentials(ctx, c, namespace, repo.AWS, index, env)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if repo.Azure != nil {
+			env, err = envSetAzureCredentials(ctx, c, namespace, repo.Azure, repo.EndpointURL, index, env)
 			if err != nil {
 				return nil, err
 			}
@@ -174,6 +190,48 @@ func envSetAWSCredentials(
 
 	env = append(env, utils.FormatRepoEnv(repoIndex, "S3_KEY_TYPE", string(s3credentials.KeyType)))
 	env = append(env, utils.FormatRepoEnv(repoIndex, "S3_REGION", s3credentials.Region))
+
+	return env, nil
+}
+
+// envSetAzureCredentials sets the Azure environment variables given the configuration
+// inside the cluster
+func envSetAzureCredentials(
+	ctx context.Context,
+	client client.Client,
+	namespace string,
+	azureCredentials *pgbackrestApi.AzureCredentials,
+	endpointURL string,
+	repoIndex int,
+	env []string,
+) ([]string, error) {
+	if azureCredentials.Account == nil {
+		return nil, fmt.Errorf("missing Azure storage account")
+	}
+	account, err := extractValueFromSecret(ctx, client, azureCredentials.Account, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	if azureCredentials.Key == nil {
+		return nil, fmt.Errorf("missing Azure account key")
+	}
+	key, err := extractValueFromSecret(ctx, client, azureCredentials.Key, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	env = append(env, utils.FormatRepoEnv(repoIndex, "AZURE_ACCOUNT", string(account)))
+	env = append(env, utils.FormatRepoEnv(repoIndex, "AZURE_KEY", string(key)))
+	env = append(env, utils.FormatRepoEnv(repoIndex, "AZURE_KEY_TYPE", string(azureCredentials.KeyType)))
+
+	// The azure-endpoint override cannot be passed on the command line (pgBackRest
+	// rejects it to avoid exposing secrets in the process list), so it is provided
+	// as an environment variable. Only set when an endpoint override is configured;
+	// real Azure Blob Storage relies on endpoint auto-discovery.
+	if len(endpointURL) > 0 {
+		env = append(env, utils.FormatRepoEnv(repoIndex, "AZURE_ENDPOINT", endpointURL))
+	}
 
 	return env, nil
 }

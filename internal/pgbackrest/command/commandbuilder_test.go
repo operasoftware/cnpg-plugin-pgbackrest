@@ -64,6 +64,59 @@ var _ = Describe("pgbackrestWalRestoreOptions", func() {
 	})
 })
 
+var _ = Describe("pgbackrestWalRestoreOptions with Azure repository", func() {
+	var storageConf *pgbackrestApi.PgbackrestConfiguration
+	BeforeEach(func() {
+		storageConf = &pgbackrestApi.PgbackrestConfiguration{
+			Repositories: []pgbackrestApi.PgbackrestRepository{
+				{
+					PgbackrestCredentials: pgbackrestApi.PgbackrestCredentials{
+						Azure: &pgbackrestApi.AzureCredentials{},
+					},
+					Bucket:          "container-name",
+					DestinationPath: "/",
+				},
+			},
+		}
+	})
+
+	It("should generate correct arguments for an Azure repository", func(ctx SpecContext) {
+		options, err := CloudWalRestoreOptions(ctx, storageConf, "test-cluster", "/var/lib/postgres/pgdata")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.Join(options, " ")).
+			To(
+				Equal(
+					"--repo1-type azure --repo1-azure-container container-name --repo1-path / " +
+						"--pg1-path /var/lib/postgres/pgdata --stanza test-cluster",
+				))
+	})
+
+	It("should generate correct arguments for an Azure-compatible endpoint", func(ctx SpecContext) {
+		storageConf.Repositories[0].EndpointURL = "azurite:10000"
+		storageConf.Repositories[0].DisableVerifyTLS = true
+		storageConf.Repositories[0].Azure.URIStyle = "path"
+		options, err := CloudWalRestoreOptions(ctx, storageConf, "test-cluster", "/var/lib/postgres/pgdata")
+		Expect(err).ToNot(HaveOccurred())
+		// The azure-endpoint override is not emitted on the command line; pgBackRest
+		// rejects it there and it is passed via PGBACKREST_REPO1_AZURE_ENDPOINT instead.
+		Expect(strings.Join(options, " ")).
+			To(
+				Equal(
+					"--repo1-type azure --repo1-storage-verify-tls=n " +
+						"--repo1-azure-container container-name --repo1-path / --repo1-azure-uri-style path " +
+						"--pg1-path /var/lib/postgres/pgdata --stanza test-cluster",
+				))
+		Expect(options).ToNot(ContainElement(ContainSubstring("azure-endpoint")))
+	})
+
+	It("should fail fast when both s3 and azure credentials are set", func(ctx SpecContext) {
+		storageConf.Repositories[0].AWS = &pgbackrestApi.S3Credentials{}
+		_, err := CloudWalRestoreOptions(ctx, storageConf, "test-cluster", "/var/lib/postgres/pgdata")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("both s3Credentials and azureCredentials set"))
+	})
+})
+
 var _ = Describe("PgbackrestRetention", func() {
 	var config *pgbackrestApi.PgbackrestConfiguration
 	var history int32 = 8
