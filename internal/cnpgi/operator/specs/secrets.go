@@ -23,7 +23,8 @@ import (
 	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
 )
 
-// CollectSecretNamesFromCredentials collects the names of the secrets
+// CollectSecretNamesFromCredentials collects the names of the S3 credential
+// secrets referenced by the backup credentials.
 func CollectSecretNamesFromCredentials(pgbackrestCredentials *pgbackrestApi.PgbackrestCredentials) []string {
 	var references []*machineryapi.SecretKeySelector
 	if pgbackrestCredentials.AWS != nil {
@@ -42,5 +43,20 @@ func CollectSecretNamesFromCredentials(pgbackrestCredentials *pgbackrestApi.Pgba
 		result = append(result, reference.Name)
 	}
 
+	return result
+}
+
+// CollectSecretNamesFromRepositories collects the names of all secrets referenced
+// by the repository configurations, including the endpoint CA certificate secret.
+func CollectSecretNamesFromRepositories(repositories []pgbackrestApi.PgbackrestRepository) []string {
+	var result []string
+	for _, repo := range repositories {
+		if repo.EndpointCA != nil {
+			result = append(result, repo.EndpointCA.Name)
+		}
+		if repo.EncryptionKey != nil {
+			result = append(result, repo.EncryptionKey.Name)
+		}
+	}
 	return result
 }

@@ -22,6 +22,7 @@ package credentials
 import (
 	"context"
 	"fmt"
+	"os"
 
 	machineryapi "github.com/cloudnative-pg/machinery/pkg/api"
 	corev1 "k8s.io/api/core/v1"
@@ -37,8 +38,6 @@ const (
 
 	// CertificatesDir location to store the certificates
 	CertificatesDir = ScratchDataDirectory + "/certificates/"
-
-	// TODO: Properly mount/read and pass CA file for each pgbackrest repository.
 
 	// BarmanBackupEndpointCACertificateLocation is the location where the barman endpoint
 	// CA certificate is stored
@@ -72,7 +71,10 @@ func EnvSetBackupCloudCredentials(
 ) ([]string, error) {
 	for index, repo := range configuration.Repositories {
 		if repo.EndpointCA != nil {
-			env = append(env, utils.FormatRepoEnv(index, "HOST_CA_FILE", BarmanBackupEndpointCACertificateLocation))
+			if err := writeEndpointCACertificate(ctx, c, repo.EndpointCA, namespace, BarmanBackupEndpointCACertificateLocation); err != nil {
+				return nil, fmt.Errorf("writing backup endpoint CA certificate: %w", err)
+			}
+			env = append(env, utils.FormatRepoEnv(index, "STORAGE_CA_FILE", BarmanBackupEndpointCACertificateLocation))
 		}
 	}
 
@@ -90,7 +92,10 @@ func EnvSetRestoreCloudCredentials(
 ) ([]string, error) {
 	for index, repo := range configuration.Repositories {
 		if repo.EndpointCA != nil {
-			env = append(env, utils.FormatRepoEnv(index, "HOST_CA_FILE", BarmanBackupEndpointCACertificateLocation))
+			if err := writeEndpointCACertificate(ctx, c, repo.EndpointCA, namespace, BarmanRestoreEndpointCACertificateLocation); err != nil {
+				return nil, fmt.Errorf("writing restore endpoint CA certificate: %w", err)
+			}
+			env = append(env, utils.FormatRepoEnv(index, "STORAGE_CA_FILE", BarmanRestoreEndpointCACertificateLocation))
 		}
 	}
 
@@ -228,4 +233,30 @@ func extractValueFromSecret(
 	}
 
 	return value, nil
+}
+
+// writeEndpointCACertificate reads the CA certificate from the referenced Kubernetes
+// Secret and writes it to the given file path so pgBackRest can verify the S3
+// endpoint's TLS certificate via the PGBACKREST_REPO<N>_STORAGE_CA_FILE env var.
+func writeEndpointCACertificate(
+	ctx context.Context,
+	c client.Client,
+	secretReference *machineryapi.SecretKeySelector,
+	namespace string,
+	filePath string,
+) error {
+	caData, err := extractValueFromSecret(ctx, c, secretReference, namespace)
+	if err != nil {
+		return fmt.Errorf("reading endpoint CA secret %s/%s: %w", namespace, secretReference.Name, err)
+	}
+
+	if err := os.MkdirAll(CertificatesDir, 0o700); err != nil {
+		return fmt.Errorf("creating certificates directory %s: %w", CertificatesDir, err)
+	}
+
+	if err := os.WriteFile(filePath, caData, 0o600); err != nil {
+		return fmt.Errorf("writing endpoint CA certificate to %s: %w", filePath, err)
+	}
+
+	return nil
 }

@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
+	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
 )
 
 // BuildRole builds the Role object for this cluster
@@ -49,6 +50,9 @@ func BuildRole(
 		pgbackrestObjectsSet.Put(pgbackrestObject.Name)
 		for _, repo := range pgbackrestObject.Spec.Configuration.Repositories {
 			for _, secret := range CollectSecretNamesFromCredentials(&repo.PgbackrestCredentials) {
+				secretsSet.Put(secret)
+			}
+			for _, secret := range CollectSecretNamesFromRepositories([]pgbackrestApi.PgbackrestRepository{repo}) {
 				secretsSet.Put(secret)
 			}
 		}
