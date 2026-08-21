@@ -39,26 +39,24 @@ const (
 	// CertificatesDir location to store the certificates
 	CertificatesDir = ScratchDataDirectory + "/certificates/"
 
-	// BarmanBackupEndpointCACertificateLocation is the location where the barman endpoint
-	// CA certificate is stored
-	BarmanBackupEndpointCACertificateLocation = CertificatesDir + BarmanBackupEndpointCACertificateFileName
-
-	// BarmanBackupEndpointCACertificateFileName is the name of the file in which the barman endpoint
-	// CA certificate for backups is stored
-	BarmanBackupEndpointCACertificateFileName = "backup-" + BarmanEndpointCACertificateFileName
-
-	// BarmanRestoreEndpointCACertificateLocation is the location where the barman endpoint
-	// CA certificate is stored
-	BarmanRestoreEndpointCACertificateLocation = CertificatesDir + BarmanRestoreEndpointCACertificateFileName
-
-	// BarmanRestoreEndpointCACertificateFileName is the name of the file in which the barman endpoint
-	// CA certificate for restores is stored
-	BarmanRestoreEndpointCACertificateFileName = "restore-" + BarmanEndpointCACertificateFileName
-
-	// BarmanEndpointCACertificateFileName is the name of the file in which the barman endpoint
-	// CA certificate is stored
-	BarmanEndpointCACertificateFileName = "barman-ca.crt"
+	// PgBackRestEndpointCACertificateFileName is the base name of the file in
+	// which the pgBackRest endpoint CA certificate is stored.
+	PgBackRestEndpointCACertificateFileName = "pgbackrest-ca.crt"
 )
+
+// PgBackRestBackupEndpointCACertificateLocation returns the file path where
+// the pgBackRest endpoint CA certificate for backups of the given repository
+// (zero-based index) is stored.
+func PgBackRestBackupEndpointCACertificateLocation(repoIndex int) string {
+	return CertificatesDir + fmt.Sprintf("backup-repo%d-%s", repoIndex+1, PgBackRestEndpointCACertificateFileName)
+}
+
+// PgBackRestRestoreEndpointCACertificateLocation returns the file path where
+// the pgBackRest endpoint CA certificate for restores of the given repository
+// (zero-based index) is stored.
+func PgBackRestRestoreEndpointCACertificateLocation(repoIndex int) string {
+	return CertificatesDir + fmt.Sprintf("restore-repo%d-%s", repoIndex+1, PgBackRestEndpointCACertificateFileName)
+}
 
 // EnvSetBackupCloudCredentials sets the AWS environment variables needed for backups
 // given the configuration inside the cluster
@@ -71,10 +69,10 @@ func EnvSetBackupCloudCredentials(
 ) ([]string, error) {
 	for index, repo := range configuration.Repositories {
 		if repo.EndpointCA != nil {
-			if err := writeEndpointCACertificate(ctx, c, repo.EndpointCA, namespace, BarmanBackupEndpointCACertificateLocation); err != nil {
+			if err := writeEndpointCACertificate(ctx, c, repo.EndpointCA, namespace, PgBackRestBackupEndpointCACertificateLocation(index)); err != nil {
 				return nil, fmt.Errorf("writing backup endpoint CA certificate: %w", err)
 			}
-			env = append(env, utils.FormatRepoEnv(index, "STORAGE_CA_FILE", BarmanBackupEndpointCACertificateLocation))
+			env = append(env, utils.FormatRepoEnv(index, "STORAGE_CA_FILE", PgBackRestBackupEndpointCACertificateLocation(index)))
 		}
 	}
 
@@ -92,10 +90,10 @@ func EnvSetRestoreCloudCredentials(
 ) ([]string, error) {
 	for index, repo := range configuration.Repositories {
 		if repo.EndpointCA != nil {
-			if err := writeEndpointCACertificate(ctx, c, repo.EndpointCA, namespace, BarmanRestoreEndpointCACertificateLocation); err != nil {
+			if err := writeEndpointCACertificate(ctx, c, repo.EndpointCA, namespace, PgBackRestRestoreEndpointCACertificateLocation(index)); err != nil {
 				return nil, fmt.Errorf("writing restore endpoint CA certificate: %w", err)
 			}
-			env = append(env, utils.FormatRepoEnv(index, "STORAGE_CA_FILE", BarmanRestoreEndpointCACertificateLocation))
+			env = append(env, utils.FormatRepoEnv(index, "STORAGE_CA_FILE", PgBackRestRestoreEndpointCACertificateLocation(index)))
 		}
 	}
 
