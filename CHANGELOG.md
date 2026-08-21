@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.7.0...v0.8.0) (2026-08-21)
+
+
+### Features
+
+* Make pgBackRest log levels configurable ([d43bf2b](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/d43bf2b658c2fb8190ede01a117aca44cccf8327))
+* Per-repository custom CA configuration ([#141](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/141)) ([37c20d0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/37c20d0787a9b3a022c4246d2796a99467e5eb28))
+
+
+### Bug Fixes
+
+* **deps:** Update module github.com/onsi/ginkgo/v2 to v2.32.1 ([#139](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/139)) ([fa4c89c](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/fa4c89ca917cd7ddb98730bd7f3c2e9b8c7543bf))
+
 ## [0.7.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.6.1...v0.7.0) (2026-08-12)
 
 
