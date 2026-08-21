@@ -38,16 +38,17 @@ The features provided by this plugin are:
 > in the object store, restore is currently tested only with full backup recovery
 > to the latest backup. Reports on more advanced recovery attempts are welcome.
 
-This plugin is currently only compatible with S3 object storage.
+This plugin is compatible with S3 and Azure Blob object storage.
 
 The following storage solutions have been tested and confirmed to work with
 this implementation:
 
 - [MinIO](https://min.io/) – An S3-compatible object storage solution.
+- [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs).
 
 Known missing features:
 
-- support for other object storage solutions (GCS, Azure),
+- support for other object storage solutions (GCS),
 - backups from replicas,
 - proper support for private certificate authorities.
 
@@ -192,6 +193,47 @@ spec:
       limits:
         memory: "2Gi"
         cpu: "2"
+```
+
+For Azure Blob storage, use the `azureCredentials` field instead of
+`s3Credentials`. The `bucket` field is used as the Azure container name:
+
+```yaml
+apiVersion: pgbackrest.cnpg.opera.com/v1
+kind: Archive
+metadata:
+  name: azure-store
+spec:
+  configuration:
+    repositories:
+      - destinationPath: /
+        bucket: backups
+        azureCredentials:
+          # keyType defaults to "shared". Use "sas" to pass a SAS token as the key.
+          account:
+            name: azure
+            key: AZURE_STORAGE_ACCOUNT
+          key:
+            name: azure
+            key: AZURE_STORAGE_KEY
+    compression: zst
+```
+
+When targeting an Azure-compatible endpoint (for example the
+[Azurite](https://github.com/Azure/Azurite) emulator), set an explicit
+`endpointURL` and use path-style addressing via `uriStyle: path`, since these
+endpoints expose the storage account name in the URL path rather than the host:
+
+```yaml
+        azureCredentials:
+          uriStyle: path
+          account:
+            name: azure
+            key: AZURE_STORAGE_ACCOUNT
+          key:
+            name: azure
+            key: AZURE_STORAGE_KEY
+        endpointURL: azurite:10000
 ```
 
 > [!IMPORTANT]
