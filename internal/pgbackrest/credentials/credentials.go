@@ -69,10 +69,11 @@ func EnvSetBackupCloudCredentials(
 ) ([]string, error) {
 	for index, repo := range configuration.Repositories {
 		if repo.EndpointCA != nil {
-			if err := writeEndpointCACertificate(ctx, c, repo.EndpointCA, namespace, PgBackRestBackupEndpointCACertificateLocation(index)); err != nil {
+			caPath := PgBackRestBackupEndpointCACertificateLocation(index)
+			if err := writeEndpointCACertificate(ctx, c, repo.EndpointCA, namespace, caPath); err != nil {
 				return nil, fmt.Errorf("writing backup endpoint CA certificate: %w", err)
 			}
-			env = append(env, utils.FormatRepoEnv(index, "STORAGE_CA_FILE", PgBackRestBackupEndpointCACertificateLocation(index)))
+			env = append(env, utils.FormatRepoEnv(index, "STORAGE_CA_FILE", caPath))
 		}
 	}
 
@@ -90,10 +91,11 @@ func EnvSetRestoreCloudCredentials(
 ) ([]string, error) {
 	for index, repo := range configuration.Repositories {
 		if repo.EndpointCA != nil {
-			if err := writeEndpointCACertificate(ctx, c, repo.EndpointCA, namespace, PgBackRestRestoreEndpointCACertificateLocation(index)); err != nil {
+			caPath := PgBackRestRestoreEndpointCACertificateLocation(index)
+			if err := writeEndpointCACertificate(ctx, c, repo.EndpointCA, namespace, caPath); err != nil {
 				return nil, fmt.Errorf("writing restore endpoint CA certificate: %w", err)
 			}
-			env = append(env, utils.FormatRepoEnv(index, "STORAGE_CA_FILE", PgBackRestRestoreEndpointCACertificateLocation(index)))
+			env = append(env, utils.FormatRepoEnv(index, "STORAGE_CA_FILE", caPath))
 		}
 	}
 
