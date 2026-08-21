@@ -22,6 +22,7 @@ package credentials
 import (
 	"context"
 	"fmt"
+	"os"
 
 	machineryapi "github.com/cloudnative-pg/machinery/pkg/api"
 	corev1 "k8s.io/api/core/v1"
@@ -38,28 +39,24 @@ const (
 	// CertificatesDir location to store the certificates
 	CertificatesDir = ScratchDataDirectory + "/certificates/"
 
-	// TODO: Properly mount/read and pass CA file for each pgbackrest repository.
-
-	// BarmanBackupEndpointCACertificateLocation is the location where the barman endpoint
-	// CA certificate is stored
-	BarmanBackupEndpointCACertificateLocation = CertificatesDir + BarmanBackupEndpointCACertificateFileName
-
-	// BarmanBackupEndpointCACertificateFileName is the name of the file in which the barman endpoint
-	// CA certificate for backups is stored
-	BarmanBackupEndpointCACertificateFileName = "backup-" + BarmanEndpointCACertificateFileName
-
-	// BarmanRestoreEndpointCACertificateLocation is the location where the barman endpoint
-	// CA certificate is stored
-	BarmanRestoreEndpointCACertificateLocation = CertificatesDir + BarmanRestoreEndpointCACertificateFileName
-
-	// BarmanRestoreEndpointCACertificateFileName is the name of the file in which the barman endpoint
-	// CA certificate for restores is stored
-	BarmanRestoreEndpointCACertificateFileName = "restore-" + BarmanEndpointCACertificateFileName
-
-	// BarmanEndpointCACertificateFileName is the name of the file in which the barman endpoint
-	// CA certificate is stored
-	BarmanEndpointCACertificateFileName = "barman-ca.crt"
+	// PgBackRestEndpointCACertificateFileName is the base name of the file in
+	// which the pgBackRest endpoint CA certificate is stored.
+	PgBackRestEndpointCACertificateFileName = "pgbackrest-ca.crt"
 )
+
+// PgBackRestBackupEndpointCACertificateLocation returns the file path where
+// the pgBackRest endpoint CA certificate for backups of the given repository
+// (zero-based index) is stored.
+func PgBackRestBackupEndpointCACertificateLocation(repoIndex int) string {
+	return CertificatesDir + fmt.Sprintf("backup-repo%d-%s", repoIndex+1, PgBackRestEndpointCACertificateFileName)
+}
+
+// PgBackRestRestoreEndpointCACertificateLocation returns the file path where
+// the pgBackRest endpoint CA certificate for restores of the given repository
+// (zero-based index) is stored.
+func PgBackRestRestoreEndpointCACertificateLocation(repoIndex int) string {
+	return CertificatesDir + fmt.Sprintf("restore-repo%d-%s", repoIndex+1, PgBackRestEndpointCACertificateFileName)
+}
 
 // EnvSetBackupCloudCredentials sets the AWS environment variables needed for backups
 // given the configuration inside the cluster
@@ -72,7 +69,11 @@ func EnvSetBackupCloudCredentials(
 ) ([]string, error) {
 	for index, repo := range configuration.Repositories {
 		if repo.EndpointCA != nil {
-			env = append(env, utils.FormatRepoEnv(index, "HOST_CA_FILE", BarmanBackupEndpointCACertificateLocation))
+			caPath := PgBackRestBackupEndpointCACertificateLocation(index)
+			if err := writeEndpointCACertificate(ctx, c, repo.EndpointCA, namespace, caPath); err != nil {
+				return nil, fmt.Errorf("writing backup endpoint CA certificate: %w", err)
+			}
+			env = append(env, utils.FormatRepoEnv(index, "STORAGE_CA_FILE", caPath))
 		}
 	}
 
@@ -90,7 +91,11 @@ func EnvSetRestoreCloudCredentials(
 ) ([]string, error) {
 	for index, repo := range configuration.Repositories {
 		if repo.EndpointCA != nil {
-			env = append(env, utils.FormatRepoEnv(index, "HOST_CA_FILE", BarmanBackupEndpointCACertificateLocation))
+			caPath := PgBackRestRestoreEndpointCACertificateLocation(index)
+			if err := writeEndpointCACertificate(ctx, c, repo.EndpointCA, namespace, caPath); err != nil {
+				return nil, fmt.Errorf("writing restore endpoint CA certificate: %w", err)
+			}
+			env = append(env, utils.FormatRepoEnv(index, "STORAGE_CA_FILE", caPath))
 		}
 	}
 
@@ -228,4 +233,30 @@ func extractValueFromSecret(
 	}
 
 	return value, nil
+}
+
+// writeEndpointCACertificate reads the CA certificate from the referenced Kubernetes
+// Secret and writes it to the given file path so pgBackRest can verify the S3
+// endpoint's TLS certificate via the PGBACKREST_REPO<N>_STORAGE_CA_FILE env var.
+func writeEndpointCACertificate(
+	ctx context.Context,
+	c client.Client,
+	secretReference *machineryapi.SecretKeySelector,
+	namespace string,
+	filePath string,
+) error {
+	caData, err := extractValueFromSecret(ctx, c, secretReference, namespace)
+	if err != nil {
+		return fmt.Errorf("reading endpoint CA secret %s/%s: %w", namespace, secretReference.Name, err)
+	}
+
+	if err := os.MkdirAll(CertificatesDir, 0o700); err != nil {
+		return fmt.Errorf("creating certificates directory %s: %w", CertificatesDir, err)
+	}
+
+	if err := os.WriteFile(filePath, caData, 0o600); err != nil {
+		return fmt.Errorf("writing endpoint CA certificate to %s: %w", filePath, err)
+	}
+
+	return nil
 }

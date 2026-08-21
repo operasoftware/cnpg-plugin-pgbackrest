@@ -284,8 +284,7 @@ func (w WALServiceImplementation) restoreFromPgbackrestArchive(
 
 	pgbackrestConfiguration := &archive.Spec.Configuration
 
-	env := GetRestoreCABundleEnv(pgbackrestConfiguration)
-	credentialsEnv, err := pgbackrestCredentials.EnvSetBackupCloudCredentials(
+	env, err := pgbackrestCredentials.EnvSetRestoreCloudCredentials(
 		ctx,
 		w.Client,
 		archive.Namespace,
@@ -295,7 +294,6 @@ func (w WALServiceImplementation) restoreFromPgbackrestArchive(
 	if err != nil {
 		return fmt.Errorf("while getting recover credentials: %w", err)
 	}
-	env = MergeEnv(env, credentialsEnv)
 
 	options, err := pgbackrestCommand.CloudWalRestoreOptions(ctx, pgbackrestConfiguration, stanza, w.PGDataPath)
 	if err != nil {

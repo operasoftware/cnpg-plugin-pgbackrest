@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
-	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/common"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
 	pgbackrestBackup "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/backup"
@@ -106,13 +105,12 @@ func (b BackupServiceImplementation) Backup(
 	// We need to connect to PostgreSQL and to do that we need
 	// PGHOST (and the like) to be available
 	osEnvironment := utils.SanitizedEnviron()
-	caBundleEnvironment := common.GetRestoreCABundleEnv(&archive.Spec.Configuration)
 	env, err := pgbackrestCredentials.EnvSetBackupCloudCredentials(
 		ctx,
 		b.Client,
 		archive.Namespace,
 		&archive.Spec.Configuration,
-		common.MergeEnv(osEnvironment, caBundleEnvironment))
+		osEnvironment)
 	if err != nil {
 		contextLogger.Error(err, "while setting backup cloud credentials")
 		return nil, err
