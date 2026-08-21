@@ -43,6 +43,36 @@ spec:
                 description: PgbackrestConfiguration is the configuration of all pgBackRest
                   operations
                 properties:
+                  backupStandby:
+                    description: |-
+                      BackupStandby, when enabled, offloads backups to a standby instance using
+                      pgBackRest multi-host TLS. See BackupStandbyConfiguration.
+                    properties:
+                      enabled:
+                        description: Enabled turns on backup-from-standby.
+                        type: boolean
+                      injectSAN:
+                        default: true
+                        description: |-
+                          InjectSAN controls whether the plugin adds the pgBackRest service DNS name to
+                          the cluster server certificate (serverAltDNSNames). Defaults to true; set to
+                          false to manage the SAN yourself.
+                        type: boolean
+                      injectService:
+                        default: true
+                        description: |-
+                          InjectService controls whether the plugin injects the headless service that
+                          exposes the pgBackRest TLS server port on the instances. Defaults to true; set
+                          to false to manage that service yourself.
+                        type: boolean
+                      serviceName:
+                        description: |-
+                          ServiceName is the headless service that resolves to the primary's pgBackRest
+                          TLS server. Defaults to "<cluster>-pgbackrest", the service the plugin manages;
+                          set it when you provide the service yourself. The port is not configurable: a
+                          user-provided service must expose DefaultServerPort.
+                        type: string
+                    type: object
                   compression:
                     description: |-
                       Compress a WAL file before sending it to the object store. Available
