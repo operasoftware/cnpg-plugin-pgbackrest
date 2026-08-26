@@ -22,6 +22,7 @@ import (
 
 	"github.com/cloudnative-pg/cnpg-i-machinery/pkg/pluginhelper/http"
 	"github.com/cloudnative-pg/cnpg-i/pkg/backup"
+	"github.com/cloudnative-pg/cnpg-i/pkg/metrics"
 	"github.com/cloudnative-pg/cnpg-i/pkg/wal"
 	"google.golang.org/grpc"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -54,6 +55,9 @@ func (c *CNPGI) Start(ctx context.Context) error {
 			Client:       c.Client,
 			InstanceName: c.InstanceName,
 			PGDataPath:   c.PGDataPath,
+		})
+		metrics.RegisterMetricsServer(server, MetricsServiceImplementation{
+			Client: c.Client,
 		})
 		common.AddHealthCheck(server)
 		return nil
