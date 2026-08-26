@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	minio = "minio"
+	minio   = "minio"
+	azurite = "azurite"
 	// Size of the PVCs for the object stores and the cluster instances.
 	size               = "1Gi"
 	srcClusterName     = "source"
@@ -75,6 +76,34 @@ func (s s3BackupPluginBackupPluginRestore) createBackupRestoreTestResources(
 	result.DstBackup = newDstPluginBackup(namespace)
 
 	return result
+}
+
+type azureBackupPluginBackupPluginRestore struct{}
+
+type azureBackupPluginTargetTimeRestore struct {
+	azureBackupPluginBackupPluginRestore
+}
+
+func (s azureBackupPluginBackupPluginRestore) createBackupRestoreTestResources(
+	namespace string,
+) backupRestoreTestResources {
+	result := backupRestoreTestResources{}
+
+	result.ObjectStoreResources = objectstore.NewAzuriteObjectStoreResources(namespace, azurite)
+	result.Archive = objectstore.NewAzuriteArchive(namespace, archiveName, azurite, 1)
+	result.SrcCluster = newSrcClusterWithPlugin(namespace)
+	result.SrcBackup = newSrcPluginBackup(namespace)
+	result.DstCluster = newDstClusterWithPlugin(namespace)
+	result.DstBackup = newDstPluginBackup(namespace)
+
+	return result
+}
+
+func (s azureBackupPluginTargetTimeRestore) createPITRCluster(
+	namespace string,
+	targetTime string,
+) *cloudnativepgv1.Cluster {
+	return s3BackupPluginTargetTimeRestore{}.createPITRCluster(namespace, targetTime)
 }
 
 func (s s3BackupPluginTargetTimeRestore) createPITRCluster(
