@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.8.0...v0.8.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **deps:** Update module google.golang.org/grpc to v1.83.1 ([#145](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/145)) ([4677135](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/46771350a020fa7fd0bde0f0ae4020b4633de321))
+
 ## [0.8.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.7.0...v0.8.0) (2026-08-21)
 
 
