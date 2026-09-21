@@ -257,6 +257,59 @@ spec:
 > This feature makes it possible to configure some additional options, most notably
 > backup type, for a single backup instead of globally.
 
+### Backup Retention
+
+pgBackRest enforces the retention policy defined for a repository at the end of
+every base backup, expiring from it the backups that fall outside of the policy:
+
+```yaml
+apiVersion: pgbackrest.cnpg.opera.com/v1
+kind: Archive
+metadata:
+  name: minio-store
+spec:
+  configuration:
+    repositories:
+      - destinationPath: /
+        bucket: backups
+        endpointURL: minio:9000
+        retention:
+          full: 7
+          fullType: time
+```
+
+Once a backup has been expired from the repository, the plugin deletes the
+`Backup` resource that describes it. Without this step those resources would pile
+up for as long as the cluster lives, and would keep advertising restore points
+whose data has already been removed.
+
+Only the resources of the completed backups this plugin took for this cluster,
+into the stanza and the repositories it is currently configured to use, are
+considered. Backups taken by another plugin, backups written somewhere else and
+backups of a cluster that merely shares the name of this one are left untouched,
+and so are the failed ones, which are kept as a record of the failure.
+
+That location is recorded in the `pluginMetadata` of every `Backup` resource this
+plugin takes. Resources written before it started being recorded carry no
+location and are attributed to the current one, since it is the only one they can
+be checked against, and they never acquire one afterwards: whenever the stanza or
+the repositories of a cluster change, those older resources are deleted by the
+next backup, however long after the upgrade that happens. The data they describe
+is not touched.
+
+A location is compared as a whole, so it cuts the other way too: renaming the
+endpoint of a bucket, or reordering the repositories of an `Archive`, leaves the
+resources written before the change behind for good, and they have to be removed
+by hand.
+
+The cleanup runs as part of the backup, so the first backup after an upgrade may
+take slightly longer while the accumulated resources are removed.
+
+> [!NOTE]
+> A `Backup` resource is a description of a backup, not the backup itself.
+> Deleting one, either by hand or through this cleanup, does not remove any data
+> from the repository.
+
 ### Restoring a Cluster
 
 To restore a cluster from an archive, create a new `Cluster` resource that

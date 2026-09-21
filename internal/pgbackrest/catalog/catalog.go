@@ -335,14 +335,41 @@ type Catalog struct {
 	Stanza     string                     `json:"name"`
 	Databases  []PgbackrestBackupDatabase `json:"db"`
 	Encryption string                     `json:"cipher"`
+	Repos      []PgbackrestRepo           `json:"repo"`
 	Status     PgbackrestStanzaStatus     `json:"status"`
 }
+
+// StanzaStatusCodeOk is the "pgbackrest info" status code reported when everything
+// that was asked about could be read and is consistent.
+const StanzaStatusCodeOk = 0
+
+// StanzaStatusCodeNoBackup is the "pgbackrest info" status code reported for a
+// repository that could be read in full and holds no backup yet.
+const StanzaStatusCodeNoBackup = 2
+
+// StanzaStatusCodeMixed is the "pgbackrest info" status code reported for a stanza
+// whose repositories do not all report the same status. With one repository holding
+// backups and another still empty this is the expected answer, so it says nothing
+// about any repository having failed.
+const StanzaStatusCodeMixed = 4
 
 // StanzaStatusCodeMissing is the "pgbackrest info" stanza status code returned when
 // the stanza has not been created in the repository yet (its archive.info is absent).
 // While the stanza is in this state WAL archiving cannot succeed until
 // "pgbackrest stanza-create" has been run.
 const StanzaStatusCodeMissing = 1
+
+// PgbackrestRepo is one of the repositories of a stanza, as "pgbackrest info" reports
+// it. Only the fields we act on are parsed; the rest of the object is ignored.
+type PgbackrestRepo struct {
+	// The one-based index of the repository in the pgbackrest configuration
+	Key int `json:"key"`
+
+	// The status of this single repository. "pgbackrest info" does not fail when one
+	// repository of a stanza cannot be read: it reports the failure here and returns
+	// what the other repositories hold.
+	Status PgbackrestStanzaStatus `json:"status"`
+}
 
 // PgbackrestStanzaStatus is the "status" object that "pgbackrest info" reports for a
 // stanza. Only the fields we act on are parsed; the rest of the object is ignored.
@@ -355,6 +382,45 @@ type PgbackrestStanzaStatus struct {
 // in the repository yet, i.e. WAL archiving cannot work until stanza-create is run.
 func (catalog *Catalog) StanzaMissing() bool {
 	return catalog.Status.Code == StanzaStatusCodeMissing
+}
+
+// DescribesRepositories reports whether the catalog is a complete and consistent
+// description of the given number of repositories, which is what the caller needs
+// before concluding that a backup that is not listed in it does not exist anymore.
+//
+// "pgbackrest info" is deliberately tolerant: when one repository of a stanza cannot
+// be read it reports the failure for that repository and still returns the backups
+// held by the others. Acting on such a partial answer would mean treating the backups
+// of the unreadable repository as gone.
+func (catalog *Catalog) DescribesRepositories(repositories int) bool {
+	// The status of a stanza is the one its repositories agree on, and "mixed" as soon
+	// as they do not. Since pgBackRest writes a backup to a single repository, a stanza
+	// spanning several of them reports "mixed" as a matter of course, so what the
+	// repositories themselves report is what decides. Any other disagreement, such as a
+	// database mismatch across repositories, is left alone.
+	if catalog.Status.Code != StanzaStatusCodeMixed && !describesContent(catalog.Status.Code) {
+		return false
+	}
+
+	if len(catalog.Repos) != repositories {
+		return false
+	}
+
+	for _, repo := range catalog.Repos {
+		if !describesContent(repo.Status.Code) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// describesContent reports whether a "pgbackrest info" status code belongs to a
+// repository whose content could be read in full. A repository holding no backup yet
+// has been read just as completely as one that does; anything else, from a stanza that
+// is missing there to a backup.info that could not be parsed, makes the answer partial.
+func describesContent(statusCode int) bool {
+	return statusCode == StanzaStatusCodeOk || statusCode == StanzaStatusCodeNoBackup
 }
 
 // NewSingleBackupCatalogFromPgbackrestInfo parses the output of pgbackrest info

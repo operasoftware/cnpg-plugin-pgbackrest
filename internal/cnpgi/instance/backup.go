@@ -31,10 +31,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
-	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
 	pgbackrestBackup "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/backup"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/catalog"
+	pgbackrestCommand "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/command"
 	pgbackrestCredentials "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/credentials"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
 )
@@ -149,6 +149,21 @@ func (b BackupServiceImplementation) Backup(
 	}
 
 	contextLogger.Info("Backup completed", "backup", executedBackupInfo.Backups[0].ID)
+
+	resultMetadata := newBackupResultMetadata(
+		configuration.Cluster,
+		configuration.Stanza,
+		&archive.Spec.Configuration,
+	)
+
+	// The retention policy has just been enforced by the backup command, so the
+	// Backup resources of the backups it expired are stale from now on. A backup
+	// that succeeded must not be reported as failed because of the cleanup that
+	// follows it, hence the error is logged and swallowed.
+	if err := b.reconcileBackupResources(ctx, configuration, &archive, resultMetadata, env); err != nil {
+		contextLogger.Error(err, "while reconciling the Backup resources with the repositories")
+	}
+
 	return &backup.BackupResult{
 		BackupId:   executedBackupInfo.Backups[0].ID,
 		BackupName: executedBackupInfo.Backups[0].Annotations[catalog.BackupNameAnnotation],
@@ -160,10 +175,35 @@ func (b BackupServiceImplementation) Backup(
 		EndLsn:     executedBackupInfo.Backups[0].LSN.Stop,
 		InstanceId: b.InstanceName,
 		Online:     true,
-		Metadata: map[string]string{
-			"version":     metadata.Data.Version,
-			"name":        metadata.Data.Name,
-			"displayName": metadata.Data.DisplayName,
-		},
+		Metadata:   resultMetadata.toMap(),
 	}, nil
+}
+
+// reconcileBackupResources reads the catalog of the repositories the cluster is
+// backed up to and deletes the Backup resources whose data is not in it anymore
+func (b BackupServiceImplementation) reconcileBackupResources(
+	ctx context.Context,
+	configuration *config.PluginConfiguration,
+	archive *pgbackrestv1.Archive,
+	resultMetadata backupResultMetadata,
+	env []string,
+) error {
+	backupCatalog, err := pgbackrestCommand.GetBackupList(
+		ctx,
+		&archive.Spec.Configuration,
+		configuration.Stanza,
+		env,
+	)
+	if err != nil {
+		return fmt.Errorf("while reading the backup catalog: %w", err)
+	}
+
+	return reconcileBackupsWithCatalog(
+		ctx,
+		b.Client,
+		configuration.Cluster,
+		resultMetadata,
+		backupCatalog,
+		len(archive.Spec.Configuration.Repositories),
+	)
 }

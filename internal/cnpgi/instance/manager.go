@@ -57,6 +57,11 @@ func Start(ctx context.Context) error {
 					&corev1.Secret{},
 					&pgbackrestv1.Archive{},
 					&cnpgv1.Cluster{},
+					// The Backup resources are listed once after every backup, to
+					// drop the ones whose data has been expired. Caching them would
+					// mean watching them cluster wide, which the namespaced RBAC of
+					// the instance does not allow.
+					&cnpgv1.Backup{},
 				},
 			},
 		},
