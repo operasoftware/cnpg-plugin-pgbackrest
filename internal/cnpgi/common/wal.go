@@ -50,6 +50,9 @@ type WALServiceImplementation struct {
 	SpoolDirectory string
 	PGDataPath     string
 	PGWALPath      string
+	// DestinationCheck lets Archive skip the repository check while batches keep
+	// succeeding. When nil, the repository is checked before every batch.
+	DestinationCheck *DestinationCheck
 }
 
 // GetCapabilities implements the WALService interface
@@ -137,32 +140,11 @@ func (w WALServiceImplementation) Archive(
 		return &wal.WALArchiveResult{}, nil
 	}
 
-	// Check that the destination repository is reachable and its stanza exists.
-	err = arch.CheckWalArchiveDestination(ctx, &archive.Spec.Configuration, configuration.Stanza, envArchive)
-	switch {
-	case errors.Is(err, archiver.ErrStanzaMissing):
-		// On a fresh cluster, or after a major upgrade changes the repository path, the
-		// stanza does not exist yet and archive-push cannot succeed until it is created.
-		// When the Archive opts into it (createStanza=OnFirstArchive, the default), create
-		// it here instead of waiting for the first backup: this runs on the primary as soon
-		// as its sidecar is up, and PostgreSQL retries archiving on its own. stanza-create
-		// is idempotent, and we only reach it when the stanza is genuinely missing, so it
-		// does not contend with a running backup for the stanza lock.
-		if archive.Spec.Configuration.ShouldCreateStanzaOnArchive() {
-			backupCmd := pgbackrestBackup.NewBackupCommand(&archive.Spec.Configuration, nil, w.PGDataPath)
-			if stanzaErr := backupCmd.CreatePgbackrestStanza(ctx, configuration.Stanza, envArchive); stanzaErr != nil {
-				// Best-effort: log and continue. archive-push below reports the real
-				// outcome, and PostgreSQL retries the WAL if the stanza is still missing.
-				contextLogger.Warning("could not auto-create pgbackrest stanza; WAL archiving will retry",
-					"stanza", configuration.Stanza, "err", stanzaErr.Error())
-			} else {
-				contextLogger.Info("created pgbackrest stanza so WAL archiving can start",
-					"stanza", configuration.Stanza)
-			}
+	destination := destinationKey(&archive, configuration.Stanza)
+	if !w.DestinationCheck.isVerified(destination) {
+		if err := w.checkDestination(ctx, arch, &archive, configuration.Stanza, envArchive); err != nil {
+			return nil, err
 		}
-	case err != nil:
-		log.Error(err, "while checking if pgbackrest repo can be used for archival")
-		return nil, err
 	}
 
 	options, err := arch.PgbackrestWalArchiveOptions(ctx, &archive.Spec.Configuration, configuration.Stanza)
@@ -201,10 +183,55 @@ func (w WALServiceImplementation) Archive(
 		"failedArchives", len(walList)-successfulArchives)
 
 	if lastErr != nil {
+		// The failure may come from the destination itself, such as a stanza removed
+		// from the repository, so check it again before the next batch.
+		w.DestinationCheck.reset()
 		return nil, lastErr
 	}
+	w.DestinationCheck.markVerified(destination)
 
 	return &wal.WALArchiveResult{}, nil
+}
+
+// checkDestination checks that the destination repository is reachable and its stanza
+// exists, creating the stanza when it is missing and the Archive allows it.
+func (w WALServiceImplementation) checkDestination(
+	ctx context.Context,
+	arch *archiver.WALArchiver,
+	archive *pgbackrestv1.Archive,
+	stanza string,
+	env []string,
+) error {
+	contextLogger := log.FromContext(ctx)
+
+	err := arch.CheckWalArchiveDestination(ctx, &archive.Spec.Configuration, stanza, env)
+	switch {
+	case errors.Is(err, archiver.ErrStanzaMissing):
+		// On a fresh cluster, or after a major upgrade changes the repository path, the
+		// stanza does not exist yet and archive-push cannot succeed until it is created.
+		// When the Archive opts into it (createStanza=OnFirstArchive, the default), create
+		// it here instead of waiting for the first backup: this runs on the primary as soon
+		// as its sidecar is up, and PostgreSQL retries archiving on its own. stanza-create
+		// is idempotent, and we only reach it when the stanza is genuinely missing, so it
+		// does not contend with a running backup for the stanza lock.
+		if archive.Spec.Configuration.ShouldCreateStanzaOnArchive() {
+			backupCmd := pgbackrestBackup.NewBackupCommand(&archive.Spec.Configuration, nil, w.PGDataPath)
+			if stanzaErr := backupCmd.CreatePgbackrestStanza(ctx, stanza, env); stanzaErr != nil {
+				// Best-effort: log and continue. archive-push reports the real outcome,
+				// and PostgreSQL retries the WAL if the stanza is still missing.
+				contextLogger.Warning("could not auto-create pgbackrest stanza; WAL archiving will retry",
+					"stanza", stanza, "err", stanzaErr.Error())
+			} else {
+				contextLogger.Info("created pgbackrest stanza so WAL archiving can start",
+					"stanza", stanza)
+			}
+		}
+	case err != nil:
+		log.Error(err, "while checking if pgbackrest repo can be used for archival")
+		return err
+	}
+
+	return nil
 }
 
 // Restore implements the WALService interface
