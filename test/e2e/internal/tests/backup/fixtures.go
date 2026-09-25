@@ -36,6 +36,8 @@ const (
 	dstBackupName      = "restore"
 	restoreClusterName = "restore"
 	pitrClusterName    = "pitr-restore"
+
+	recoveryOnlyClusterName = "recovery-only"
 )
 
 type testCaseFactory interface {
@@ -268,4 +270,43 @@ func newDstClusterWithPlugin(namespace string) *cloudnativepgv1.Cluster {
 	}
 
 	return cluster
+}
+
+// newRecoveryOnlyCluster restores from the source backup without archiving: it has no
+// spec.plugins entry, only the external cluster used for recovery.
+func newRecoveryOnlyCluster(namespace string) *cloudnativepgv1.Cluster {
+	return &cloudnativepgv1.Cluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Cluster",
+			APIVersion: "postgresql.cnpg.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      recoveryOnlyClusterName,
+			Namespace: namespace,
+		},
+		Spec: cloudnativepgv1.ClusterSpec{
+			Instances:       2,
+			ImagePullPolicy: corev1.PullAlways,
+			Bootstrap: &cloudnativepgv1.BootstrapConfiguration{
+				Recovery: &cloudnativepgv1.BootstrapRecovery{
+					Source: "source",
+				},
+			},
+			ExternalClusters: []cloudnativepgv1.ExternalCluster{
+				{
+					Name: "source",
+					PluginConfiguration: &cloudnativepgv1.PluginConfiguration{
+						Name: "pgbackrest.cnpg.opera.com",
+						Parameters: map[string]string{
+							"pgbackrestObjectName": archiveName,
+							"stanza":               srcClusterName,
+						},
+					},
+				},
+			},
+			StorageConfiguration: cloudnativepgv1.StorageConfiguration{
+				Size: size,
+			},
+		},
+	}
 }

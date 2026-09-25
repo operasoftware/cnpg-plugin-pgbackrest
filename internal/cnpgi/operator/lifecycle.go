@@ -163,56 +163,49 @@ func (impl LifecycleImplementation) getArchives(
 	namespace string,
 	pluginConfiguration *config.PluginConfiguration,
 ) (*pgbackrestv1.Archive, *pgbackrestv1.Archive, error) {
+	archive, err := impl.getArchive(ctx, namespace, pluginConfiguration.PgbackrestObjectName, "archive")
+	if err != nil {
+		return nil, nil, err
+	}
+	recoveryArchive, err := impl.getArchive(
+		ctx, namespace, pluginConfiguration.RecoveryPgbackrestObjectName, "recovery archive")
+	if err != nil {
+		return nil, nil, err
+	}
+	return archive, recoveryArchive, nil
+}
+
+// getArchive returns an empty Archive when name is not set, so callers can read its sidecar
+// configuration unconditionally.
+func (impl LifecycleImplementation) getArchive(
+	ctx context.Context,
+	namespace, name, description string,
+) (*pgbackrestv1.Archive, error) {
 	var archive pgbackrestv1.Archive
-	var recoveryArchive pgbackrestv1.Archive
-	contextLogger := log.FromContext(ctx).WithName("lifecycle")
-	if len(pluginConfiguration.PgbackrestObjectName) > 0 {
-		if err := impl.Client.Get(ctx, types.NamespacedName{
-			Name:      pluginConfiguration.PgbackrestObjectName,
-			Namespace: namespace,
-		}, &archive); err != nil {
-			contextLogger.Error(err, "failed to retrieve archive", "error", err)
-			return nil, nil, err
-		}
+	if len(name) == 0 {
+		return &archive, nil
 	}
-	if len(pluginConfiguration.RecoveryPgbackrestObjectName) > 0 {
-		if err := impl.Client.Get(ctx, types.NamespacedName{
-			Name:      pluginConfiguration.RecoveryPgbackrestObjectName,
-			Namespace: namespace,
-		}, &recoveryArchive); err != nil {
-			contextLogger.Error(err, "failed to retrieve recovery archive", "error", err)
-			return nil, nil, err
-		}
+	if err := impl.Client.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, &archive); err != nil {
+		log.FromContext(ctx).WithName("lifecycle").Error(err, "failed to retrieve "+description, "error", err)
+		return nil, err
 	}
-	return &archive, &recoveryArchive, nil
+	return &archive, nil
 }
 
 func (impl LifecycleImplementation) collectAdditionalEnvs(
 	ctx context.Context,
-	archive *pgbackrestv1.Archive,
-	recoveryArchive *pgbackrestv1.Archive,
+	archives ...*pgbackrestv1.Archive,
 ) ([]corev1.EnvVar, error) {
 	var result []corev1.EnvVar
 	contextLogger := log.FromContext(ctx).WithName("lifecycle")
 
-	if archive != nil {
-		envs, err := impl.collectArchiveEnvs(
-			ctx,
-			archive,
-		)
+	for _, archive := range archives {
+		if archive == nil {
+			continue
+		}
+		envs, err := impl.collectArchiveEnvs(ctx, archive)
 		if err != nil {
 			contextLogger.Error(err, "failed to collect env variables from archives", err)
-			return nil, err
-		}
-		result = append(result, envs...)
-	}
-
-	if recoveryArchive != nil {
-		envs, err := impl.collectArchiveEnvs(
-			ctx,
-			recoveryArchive,
-		)
-		if err != nil {
 			return nil, err
 		}
 		result = append(result, envs...)
@@ -316,14 +309,52 @@ func (impl LifecycleImplementation) reconcilePod(
 	if err != nil {
 		return nil, err
 	}
-	env, err := impl.collectAdditionalEnvs(ctx, archive, recoveryArchive)
+	// Fetched here rather than in getArchives to keep the recovery Job hook unchanged.
+	replicaSourceArchive, err := impl.getArchive(
+		ctx, cluster.Namespace, pluginConfiguration.ReplicaSourcePgbackrestObjectName, "replica source archive")
 	if err != nil {
 		return nil, err
 	}
-	resources := impl.calculateSidecarResources(ctx, archive)
-	securityContext := impl.calculateSidecarSecurityContext(ctx, archive)
+	env, err := impl.collectAdditionalEnvs(ctx, archive, recoveryArchive, replicaSourceArchive)
+	if err != nil {
+		return nil, err
+	}
+	sidecarSource := sidecarArchive(pluginConfiguration, archive, recoveryArchive, replicaSourceArchive)
+	resources := impl.calculateSidecarResources(ctx, sidecarSource)
+	securityContext := impl.calculateSidecarSecurityContext(ctx, sidecarSource)
 
 	return reconcilePod(ctx, cluster, request, pluginConfiguration, env, resources, securityContext)
+}
+
+// shouldInjectSidecar decides whether an instance pod needs the plugin sidecar. A recovery-only
+// cluster needs it only for the bootstrap restore, gated on CurrentPrimary: the instance manager
+// sets it once bootstrap completes, while IsInitialized() flips as soon as the PVC exists.
+func shouldInjectSidecar(cluster *cnpgv1.Cluster, pluginConfiguration *config.PluginConfiguration) bool {
+	if len(pluginConfiguration.PgbackrestObjectName) != 0 ||
+		len(pluginConfiguration.ReplicaSourcePgbackrestObjectName) != 0 {
+		return true
+	}
+
+	if len(pluginConfiguration.RecoveryPgbackrestObjectName) == 0 {
+		return false
+	}
+
+	return cluster.Status.CurrentPrimary == ""
+}
+
+// sidecarArchive returns the Archive whose instanceSidecarConfiguration applies to the instance
+// sidecar, with plugin-barman-cloud's precedence: archive > recovery > replica source.
+func sidecarArchive(
+	pluginConfiguration *config.PluginConfiguration,
+	archive, recoveryArchive, replicaSourceArchive *pgbackrestv1.Archive,
+) *pgbackrestv1.Archive {
+	if len(pluginConfiguration.PgbackrestObjectName) != 0 {
+		return archive
+	}
+	if len(pluginConfiguration.RecoveryPgbackrestObjectName) != 0 {
+		return recoveryArchive
+	}
+	return replicaSourceArchive
 }
 
 func reconcilePod(
@@ -345,7 +376,7 @@ func reconcilePod(
 
 	mutatedPod := pod.DeepCopy()
 
-	if len(pluginConfiguration.PgbackrestObjectName) != 0 {
+	if shouldInjectSidecar(cluster, pluginConfiguration) {
 		if err := reconcilePodSpec(
 			cluster,
 			&mutatedPod.Spec,
@@ -358,7 +389,7 @@ func reconcilePod(
 			return nil, fmt.Errorf("while reconciling pod spec for pod: %w", err)
 		}
 	} else {
-		contextLogger.Debug("No need to mutate instance with no backup & archiving configuration")
+		contextLogger.Debug("No need to mutate instance, the sidecar is not required for this configuration")
 	}
 
 	patch, err := object.CreatePatch(mutatedPod, pod)
