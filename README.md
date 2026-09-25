@@ -192,12 +192,41 @@ spec:
       limits:
         memory: "2Gi"
         cpu: "2"
+    catalogMaintenanceIntervalSeconds: 1800
 ```
 
 > [!IMPORTANT]
 > Unlike Barman, pgBackRest requires object storage to be accessible over HTTPS. While
 > it's possible to disable key verification and use self-signed keys, using HTTP
 > endpoint is not possible.
+
+### Backup objects cleanup
+
+pgBackRest expires backups from the repository on its own, but it does not know about
+the CNPG `Backup` objects that point to them. The sidecar running on the primary deletes
+the `completed` `Backup` objects of the cluster whose backup ID is not in the pgBackRest
+catalog anymore, every `instanceSidecarConfiguration.catalogMaintenanceIntervalSeconds`
+(default `1800`; `0` disables the maintenance, otherwise at least `60`); an unset or
+unreadable `Archive` and a failed cycle fall back to 30 minutes.
+
+The catalog is acted upon only when it is the catalog of the expected stanza, reports
+every configured repository as readable (`ok` or `no backup`; with several repositories
+the stanza status `mixed` is the normal answer) and lists at least one backup. An empty
+catalog is never acted upon, because a freshly recreated stanza looks exactly like one.
+
+A `Backup` is matched by location: the plugin records the cluster UID, the stanza and
+the repository locations (`endpointURL/bucket` plus `destinationPath`, in configuration
+order) in `Backup.status.pluginMetadata`, and deletes only the objects whose recorded
+values all equal the current ones. Pointing an `Archive` at another bucket, adding, removing or
+reordering its repositories, or renaming the stanza makes the objects recorded earlier
+impossible to match: they are never deleted and have to be removed by hand, as are the objects
+created by plugin versions before this feature, which carry no location at all. Each
+cycle logs how many objects it kept for these reasons.
+
+Only `Backup` objects labeled `cnpg.io/cluster=<cluster>` are considered. Both
+`ScheduledBackup` and `kubectl cnpg backup` set the label; a hand-applied `Backup`
+manifest without it is never cleaned up. Failed backups are not in the catalog and are
+left untouched.
 
 ### Configuring WAL Archiving
 

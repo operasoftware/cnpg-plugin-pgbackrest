@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
-	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/metadata"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
 	pgbackrestBackup "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/backup"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/catalog"
@@ -160,10 +159,7 @@ func (b BackupServiceImplementation) Backup(
 		EndLsn:     executedBackupInfo.Backups[0].LSN.Stop,
 		InstanceId: b.InstanceName,
 		Online:     true,
-		Metadata: map[string]string{
-			"version":     metadata.Data.Version,
-			"name":        metadata.Data.Name,
-			"displayName": metadata.Data.DisplayName,
-		},
+		Metadata: newBackupResultMetadata(
+			configuration.Cluster.UID, configuration.Stanza, &archive.Spec.Configuration).toMap(),
 	}, nil
 }

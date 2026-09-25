@@ -167,6 +167,108 @@ var _ = Describe("pgbackrest info parsing", func() {
 		Expect(result.Status.Message).To(Equal("missing stanza path"))
 	})
 
+	It("must parse the repositories of a complete answer", func() {
+		result, err := NewCatalogFromPgbackrestInfo(pgbackrestInfoOutput)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result.Repos).To(HaveLen(1))
+		Expect(result.Repos[0].Key).To(Equal(1))
+		Expect(result.Repos[0].Status.Code).To(Equal(StanzaStatusCodeOk))
+		Expect(result.DescribesRepositories(1)).To(BeTrue())
+
+		// the stanza is configured with a repository this answer says nothing about
+		Expect(result.DescribesRepositories(2)).To(BeFalse())
+	})
+
+	It("must accept a stanza whose second repository holds no backup yet", func() {
+		// pgBackRest writes a backup to a single repository, so a stanza spanning two
+		// of them reports "mixed" as a matter of course
+		emptySecondRepoOutput := `[
+  {
+    "archive": [],
+    "backup": [
+      {
+        "annotation": { "cnpg-backup-name": "backup-20250401132030" },
+        "archive": { "start": "00000001000000000000000D", "stop": "00000001000000000000000D" },
+        "database": { "id": 1, "repo-key": 1 },
+        "error": false,
+        "label": "20250401-132030F",
+        "lsn": { "start": "0/D000028", "stop": "0/D000158" },
+        "prior": null,
+        "reference": null,
+        "timestamp": { "start": 1743513630, "stop": 1743513632 },
+        "type": "full"
+      }
+    ],
+    "cipher": "none",
+    "db": [],
+    "name": "cluster-example-pgbackrest",
+    "repo": [
+      { "cipher": "none", "key": 1, "status": { "code": 0, "message": "ok" } },
+      { "cipher": "none", "key": 2, "status": { "code": 2, "message": "no valid backups" } }
+    ],
+    "status": { "code": 4, "message": "different across repos" }
+  }
+]`
+		result, err := NewCatalogFromPgbackrestInfo(emptySecondRepoOutput)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result.DescribesRepositories(2)).To(BeTrue())
+	})
+
+	It("must refuse a stanza whose second repository could not be read", func() {
+		partialOutput := `[
+  {
+    "archive": [],
+    "backup": [
+      {
+        "annotation": { "cnpg-backup-name": "backup-20250401132030" },
+        "archive": { "start": "00000001000000000000000D", "stop": "00000001000000000000000D" },
+        "database": { "id": 1, "repo-key": 1 },
+        "error": false,
+        "label": "20250401-132030F",
+        "lsn": { "start": "0/D000028", "stop": "0/D000158" },
+        "prior": null,
+        "reference": null,
+        "timestamp": { "start": 1743513630, "stop": 1743513632 },
+        "type": "full"
+      }
+    ],
+    "cipher": "none",
+    "db": [],
+    "name": "cluster-example-pgbackrest",
+    "repo": [
+      { "cipher": "none", "key": 1, "status": { "code": 0, "message": "ok" } },
+      { "cipher": "none", "key": 2, "status": { "code": 99, "message": "other" } }
+    ],
+    "status": { "code": 4, "message": "different across repos" }
+  }
+]`
+		result, err := NewCatalogFromPgbackrestInfo(partialOutput)
+		Expect(err).ToNot(HaveOccurred())
+
+		// the backups of the repository that could not be read are simply absent
+		Expect(result.Backups).To(HaveLen(1))
+		Expect(result.DescribesRepositories(2)).To(BeFalse())
+	})
+
+	DescribeTable("weighs every criterion of a complete description on its own",
+		func(stanzaCode int, repoCodes []int, configured int, expected bool) {
+			c := &Catalog{Status: PgbackrestStanzaStatus{Code: stanzaCode}}
+			for idx, code := range repoCodes {
+				c.Repos = append(c.Repos, PgbackrestRepo{Key: idx + 1, Status: PgbackrestStanzaStatus{Code: code}})
+			}
+			Expect(c.DescribesRepositories(configured)).To(Equal(expected))
+		},
+		Entry("everything ok", 0, []int{0}, 1, true),
+		Entry("an empty repository alongside a used one", 4, []int{0, 2}, 2, true),
+		Entry("every repository empty", 2, []int{2, 2}, 2, true),
+		Entry("one repository unreadable", 0, []int{0, 99}, 2, false),
+		Entry("one repository missing the stanza", 0, []int{0, 1}, 2, false),
+		Entry("a database mismatch across repositories", 5, []int{0, 0}, 2, false),
+		Entry("a stanza missing everywhere", 1, []int{1}, 1, false),
+		Entry("fewer repositories than configured", 0, []int{0}, 2, false),
+		Entry("more repositories than configured", 0, []int{0, 0}, 1, false),
+	)
+
 	// It("can find the closest backup info when there is one", func() {
 	// 	recoveryTarget := &v1.RecoveryTarget{TargetTime: time.Now().Format("2006-01-02 15:04:04")}
 	// 	closestBackupInfo, err := catalog.FindBackupInfo(recoveryTarget)

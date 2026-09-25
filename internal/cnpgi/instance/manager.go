@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -48,15 +49,20 @@ func Start(ctx context.Context) error {
 	setupLog := log.FromContext(ctx)
 	setupLog.Info("Starting pgbackrest instance plugin")
 	podName := viper.GetString("pod-name")
+	clusterName := viper.GetString("cluster-name")
+	namespace := viper.GetString("namespace")
 
 	controllerOptions := ctrl.Options{
 		Scheme: scheme,
 		Client: client.Options{
 			Cache: &client.CacheOptions{
+				// Backups are listed namespace-wide by the catalog maintenance;
+				// an informer would keep every Backup of the namespace in memory.
 				DisableFor: []client.Object{
 					&corev1.Secret{},
 					&pgbackrestv1.Archive{},
 					&cnpgv1.Cluster{},
+					&cnpgv1.Backup{},
 				},
 			},
 		},
@@ -68,8 +74,10 @@ func Start(ctx context.Context) error {
 		return err
 	}
 
+	customCacheClient := extendedclient.NewExtendedClient(mgr.GetClient())
+
 	if err := mgr.Add(&CNPGI{
-		Client:       extendedclient.NewExtendedClient(mgr.GetClient()),
+		Client:       customCacheClient,
 		InstanceName: podName,
 		// TODO: improve
 		PGDataPath:     viper.GetString("pgdata"),
@@ -78,6 +86,18 @@ func Start(ctx context.Context) error {
 		PluginPath:     viper.GetString("plugin-path"),
 	}); err != nil {
 		setupLog.Error(err, "unable to create CNPGI runnable")
+		return err
+	}
+
+	if err := mgr.Add(&CatalogMaintenanceRunnable{
+		Client: customCacheClient,
+		ClusterKey: types.NamespacedName{
+			Namespace: namespace,
+			Name:      clusterName,
+		},
+		CurrentPodName: podName,
+	}); err != nil {
+		setupLog.Error(err, "unable to create catalog maintenance runnable")
 		return err
 	}
 
