@@ -34,6 +34,15 @@ import (
 	pgbackrestApi "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/api"
 )
 
+// MinIO no longer publishes its images (minio/minio is gone from Docker Hub, quay.io/minio/minio
+// requires authentication), so the e2e tests use the Chainguard builds.
+const (
+	minioImage       = "cgr.dev/chainguard/minio:latest"
+	minioClientImage = "cgr.dev/chainguard/minio-client:latest-dev"
+	minioUID         = int64(65532)
+	minioCertsPath   = "/certs"
+)
+
 // NewMinioObjectStoreResources creates the resources required to create a Minio object store.
 func NewMinioObjectStoreResources(namespace, name string) *Resources {
 	return &Resources{
@@ -69,10 +78,15 @@ func newMinioDeployment(namespace, name string) *appsv1.Deployment {
 					},
 				},
 				Spec: corev1.PodSpec{
+					// The certificates are generated as the user minio runs as, so that it can read the key.
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsUser:  ptr.To(minioUID),
+						RunAsGroup: ptr.To(minioUID),
+						FSGroup:    ptr.To(minioUID),
+					},
 					// Pgbackrest only allows HTTPS connections to S3 endpoints.
 					// That means minio must be configured in HTTPS mode. It's enabled
-					// automatically if the ${HOME}/.minio/certs directory contains
-					// certificates.
+					// automatically if the --certs-dir directory contains certificates.
 					InitContainers: []corev1.Container{
 						{
 							Name:  "generate-certs",
@@ -83,9 +97,9 @@ func newMinioDeployment(namespace, name string) *appsv1.Deployment {
 								"-newkey",
 								"rsa:4096",
 								"-keyout",
-								"/root/.minio/certs/private.key",
+								minioCertsPath + "/private.key",
 								"-out",
-								"/root/.minio/certs/public.crt",
+								minioCertsPath + "/public.crt",
 								"-sha256",
 								"-days",
 								"3650",
@@ -95,17 +109,16 @@ func newMinioDeployment(namespace, name string) *appsv1.Deployment {
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "certs",
-									MountPath: "/root/.minio/certs",
+									MountPath: minioCertsPath,
 								},
 							},
 						},
 					},
 					Containers: []corev1.Container{
 						{
-							Name: name,
-							// TODO: renovate the image
-							Image: "minio/minio:latest",
-							Args:  []string{"server", "/data"},
+							Name:  name,
+							Image: minioImage,
+							Args:  []string{"server", "/data", "--certs-dir", minioCertsPath},
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: 9000,
@@ -143,7 +156,7 @@ func newMinioDeployment(namespace, name string) *appsv1.Deployment {
 								},
 								{
 									Name:      "certs",
-									MountPath: "/root/.minio/certs",
+									MountPath: minioCertsPath,
 								},
 							},
 						},
@@ -194,8 +207,8 @@ func newMinioProvisioningJob(namespace, name string) *batchv1.Job {
 					Containers: []corev1.Container{
 						{
 							Name:    name + "-provisioner",
-							Image:   "minio/minio:latest",
-							Command: []string{"bash"},
+							Image:   minioClientImage,
+							Command: []string{"/bin/sh"},
 							Args: []string{
 								"-c",
 								fmt.Sprintf("mc alias set local https://%s:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD --insecure;\n", name) +
