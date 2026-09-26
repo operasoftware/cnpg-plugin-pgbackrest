@@ -1,7 +1,8 @@
 # Sidecar
-# The container needs to provide two components:
+# The container needs to provide three components:
 # * pgbackrest
 # * instance plugin
+# * tini as PID 1, to reap the pgbackrest processes that detach themselves
 # Plugin is built before going into a distroless container.
 # Pgbackrest is taken from the package available in the official Postgres repo.
 
@@ -38,7 +39,7 @@ FROM debian:12-slim AS pgbackrestinstaller
 RUN apt-get update && \
     apt-get install -y postgresql-common && \
     /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && \
-    apt-get install -y pgbackrest
+    apt-get install -y pgbackrest tini
 
 # Joint process
 # Now we put everything that was build from the origin into our
@@ -60,6 +61,7 @@ LABEL summary="$SUMMARY" \
 
 COPY --from=pgbackrestinstaller /usr/lib/*-linux-gnu /usr/lib/
 COPY --from=pgbackrestinstaller /usr/bin/pgbackrest /usr/bin/pgbackrest
+COPY --from=pgbackrestinstaller /usr/bin/tini-static /tini
 COPY --from=gobuilder /workspace/manager /manager
 USER 26:26
-ENTRYPOINT ["/manager"]
+ENTRYPOINT ["/tini", "--", "/manager"]
