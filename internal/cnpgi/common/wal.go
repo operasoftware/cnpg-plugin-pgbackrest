@@ -306,9 +306,12 @@ func (w WALServiceImplementation) restoreFromPgbackrestArchive(
 		return fmt.Errorf("while creating the restorer: %w", err)
 	}
 
-	// Step 1: check if this WAL file is not already in the spool
+	// Step 1: check if this WAL file is not already in the spool, or being prefetched there
 	var wasInSpool bool
-	if wasInSpool, err = walRestorer.RestoreFromSpool(walName, destinationPath); err != nil {
+	if wasInSpool, err = walRestorer.RestoreFromSpool(ctx, walName, destinationPath); err != nil {
+		if errors.Is(err, pgbackrestRestorer.ErrWALNotFound) {
+			return newWALNotFoundError()
+		}
 		return fmt.Errorf("while restoring a file from the spool directory: %w", err)
 	}
 	if wasInSpool {
@@ -319,7 +322,8 @@ func (w WALServiceImplementation) restoreFromPgbackrestArchive(
 	}
 
 	// We skip this step if streaming connection is not available
-	if isStreamingAvailable(cluster, w.InstanceName) {
+	streamingAvailable := isStreamingAvailable(cluster, w.InstanceName)
+	if streamingAvailable {
 		if err := checkEndOfWALStreamFlag(walRestorer); err != nil {
 			return err
 		}
@@ -341,45 +345,38 @@ func (w WALServiceImplementation) restoreFromPgbackrestArchive(
 		walFilesList = []string{walName}
 	}
 
-	// Step 4: download the WAL files into the required place
-	downloadStartTime := time.Now()
-	walStatus := walRestorer.RestoreList(ctx, walFilesList, destinationPath, options)
+	// Step 4: restore the requested WAL file and prefetch the following ones into the spool.
+	// PostgreSQL gets its answer as soon as the requested file is restored or known to be
+	// missing, while the prefetch goes on in the background.
+	onPrefetched := func(prefetchedWAL string, err error) {
+		// We skip this step if streaming connection is not available
+		if !streamingAvailable || !errors.Is(err, pgbackrestRestorer.ErrWALNotFound) {
+			return
+		}
+		contextLogger.Info(
+			"Set end-of-wal-stream flag as one of the WAL files to be prefetched was not found",
+			"walName", prefetchedWAL)
+		if err := walRestorer.SetEndOfWALStream(); err != nil {
+			contextLogger.Error(err, "while setting the end-of-wal-stream flag")
+		}
+	}
 
-	// We return immediately if the first WAL has errors, because the first WAL
-	// is the one that PostgreSQL has requested to restore.
-	// The failure has already been logged in walRestorer.RestoreList method
-	if walStatus[0].Err != nil {
-		if errors.Is(walStatus[0].Err, pgbackrestRestorer.ErrWALNotFound) {
+	downloadStartTime := time.Now()
+	prefetching, err := walRestorer.RestoreWithPrefetch(
+		ctx, walName, destinationPath, walFilesList[1:], options, onPrefetched)
+	if err != nil {
+		// The failure has already been logged in walRestorer.RestoreWithPrefetch method
+		if errors.Is(err, pgbackrestRestorer.ErrWALNotFound) {
 			return newWALNotFoundError()
 		}
 
-		return walStatus[0].Err
-	}
-
-	// We skip this step if streaming connection is not available
-	endOfWALStream := isEndOfWALStream(walStatus)
-	if isStreamingAvailable(cluster, w.InstanceName) && endOfWALStream {
-		contextLogger.Info(
-			"Set end-of-wal-stream flag as one of the WAL files to be prefetched was not found")
-
-		err = walRestorer.SetEndOfWALStream()
-		if err != nil {
-			return err
-		}
-	}
-
-	successfulWalRestore := 0
-	for idx := range walStatus {
-		if walStatus[idx].Err == nil {
-			successfulWalRestore++
-		}
+		return err
 	}
 
 	contextLogger.Info("WAL restore command completed (parallel)",
 		"walName", walName,
 		"maxParallel", maxParallel,
-		"successfulWalRestore", successfulWalRestore,
-		"failedWalRestore", maxParallel-successfulWalRestore,
+		"prefetching", prefetching,
 		"startTime", startTime,
 		"downloadStartTime", downloadStartTime,
 		"downloadTotalTime", time.Since(downloadStartTime),
@@ -525,16 +522,4 @@ func checkEndOfWALStreamFlag(walRestorer *pgbackrestRestorer.WALRestorer) error 
 		return ErrEndOfWALStreamReached
 	}
 	return nil
-}
-
-// isEndOfWALStream returns true if one of the downloads has returned
-// a file-not-found error.
-func isEndOfWALStream(results []pgbackrestRestorer.Result) bool {
-	for _, result := range results {
-		if errors.Is(result.Err, pgbackrestRestorer.ErrWALNotFound) {
-			return true
-		}
-	}
-
-	return false
 }

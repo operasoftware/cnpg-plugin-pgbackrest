@@ -98,6 +98,12 @@ func (spool *WALSpool) MoveOut(walName, destination string) (err error) {
 	return err
 }
 
+// CreateTemp creates a new temporary file in the spool directory to download walName
+// into before it is renamed to FileName(walName).
+func (spool *WALSpool) CreateTemp(walName string) (*os.File, error) {
+	return os.CreateTemp(spool.spoolDirectory, path.Base(walName)+".*.tmp")
+}
+
 // FileName gets the name of the file for the given WAL inside the spool
 func (spool *WALSpool) FileName(walName string) string {
 	return path.Join(spool.spoolDirectory, walName)
