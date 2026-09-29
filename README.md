@@ -334,6 +334,32 @@ spec:
 The same archive may be used for both transaction log archiving and
 restoring a cluster, or you can configure separate stores for these purposes.
 
+### Tuning WAL Restore
+
+While restoring, the plugin downloads WAL files ahead of the one PostgreSQL
+requests and keeps them in the spool directory until PostgreSQL asks for them.
+`wal.maxParallel` sets how many downloads run at once, and the plugin keeps
+`maxParallel - 1` files downloading ahead of the requested one. When a few
+downloads take much longer than the rest, for example over an unreliable link
+to the object store, such a short window stops at every slow file.
+`wal.extraPrefetch` makes the window longer, so that the other downloads go on
+past the slow one:
+
+```yaml
+spec:
+  configuration:
+    wal:
+      maxParallel: 32
+      extraPrefetch: 96
+```
+
+In our tests, with 28 percent of the downloads taking about 80 seconds, a window
+of about four times `maxParallel`, that is `extraPrefetch` of about three times
+`maxParallel`, restored about three times faster than the default. The files
+wait in the spool directory on the pod's ephemeral storage, up to
+`maxParallel - 1 + extraPrefetch` WAL segments, so leave room for them if you
+set `ephemeralVolumesSizeLimit` on the cluster.
+
 ### Configuring Replica Clusters
 
 You can set up a distributed topology by combining the previously defined
