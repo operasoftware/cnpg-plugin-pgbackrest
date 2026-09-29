@@ -385,6 +385,18 @@ spec:
                           value - with 1 being the minimum accepted value.
                         minimum: 1
                         type: integer
+                      maxPrefetch:
+                        description: |-
+                          Number of WAL files to download ahead of the one PostgreSQL requests while
+                          restoring, when maxParallel is greater than 1. The downloads run in the
+                          background and each one that completes starts the next, so one slow download
+                          does not hold up the others; no more than maxParallel run at a time. The files
+                          wait in the spool directory on the pod's ephemeral storage, so this also bounds
+                          the space the spool takes, in WAL segments. When some downloads take much longer
+                          than the rest, about four times maxParallel keeps all of them busy. Defaults to
+                          maxParallel - 1.
+                        minimum: 1
+                        type: integer
                       restoreAdditionalCommandArgs:
                         description: |-
                           Additional arguments that can be appended to the 'pgbackrest restore'
