@@ -180,6 +180,18 @@ type WalBackupConfiguration struct {
 	// +kubebuilder:validation:Minimum=1
 	// +optional
 	MaxParallel int `json:"maxParallel,omitempty"`
+
+	// Number of WAL files to download ahead of the one PostgreSQL requests while
+	// restoring, when maxParallel is greater than 1. The downloads run in the
+	// background and each one that completes starts the next, so one slow download
+	// does not hold up the others; no more than maxParallel run at a time. The files
+	// wait in the spool directory on the pod's ephemeral storage, so this also bounds
+	// the space the spool takes, in WAL segments. When some downloads take much longer
+	// than the rest, about four times maxParallel keeps all of them busy. Defaults to
+	// maxParallel - 1.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxPrefetch int `json:"maxPrefetch,omitempty"`
 	// Additional arguments that can be appended to the 'pgbackrest archive-push'
 	// command-line invocation. These arguments provide flexibility to customize
 	// the WAL archive process further, according to specific requirements or configurations.

@@ -84,10 +84,13 @@ func (restorer *WALRestorer) RestoreFromSpool(
 	ctx context.Context,
 	walName, destinationPath string,
 ) (wasInSpool bool, err error) {
-	downloads.Lock()
-	running, isRunning := downloads.running[restorer.spool.FileName(walName)]
-	downloads.Unlock()
-	if isRunning {
+	prefetches.Lock()
+	var running *download
+	if state, ok := prefetches.bySpool[restorer.spool.Directory()]; ok {
+		running = state.running[walName]
+	}
+	prefetches.Unlock()
+	if running != nil {
 		select {
 		case <-running.done:
 			if errors.Is(running.err, ErrWALNotFound) {
@@ -150,76 +153,142 @@ func (restorer *WALRestorer) ResetEndOfWalStream() error {
 	return nil
 }
 
-// downloads tracks the WAL files that are being prefetched into a spool. A request for
-// one of them waits for that download instead of starting another one, and a download
-// outlives the restore_command call that started it.
-var downloads = struct {
+// Prefetch describes the WAL files a restore_command call wants downloaded into the spool
+// ahead of PostgreSQL.
+type Prefetch struct {
+	// WALs are the files to have ready in the spool, nearest first.
+	WALs []string
+
+	// Parallel is the number of downloads that may run at a time, counting the one for
+	// the file PostgreSQL waits for, so Parallel - 1 are left for the prefetch. When
+	// Parallel is 1 a single prefetch still runs, for the partial file of a promotion.
+	Parallel int
+
+	// Options are the pgbackrest archive-get options.
+	Options []string
+
+	// OnDone, when set, is called with the outcome of every prefetch.
+	OnDone func(walName string, err error)
+}
+
+// prefetches keeps, for each spool directory, the WAL files being downloaded into it and
+// the files the latest restore_command call wants there. Downloads outlive the call that
+// started them, and each one that completes starts the next wanted file, so a slow
+// download does not leave the others idle until PostgreSQL asks for another file.
+var prefetches = struct {
 	sync.Mutex
-	running map[string]*download
-}{running: map[string]*download{}}
+	bySpool map[string]*prefetchState
+}{bySpool: map[string]*prefetchState{}}
+
+type prefetchState struct {
+	restorer *WALRestorer
+	ctx      context.Context
+	wanted   Prefetch
+	running  map[string]*download
+
+	// failed is the first wanted WAL file whose prefetch failed. Nothing from it on is
+	// prefetched until PostgreSQL asks for it, so a file that is missing or cannot be
+	// downloaded is not retried in a loop.
+	failed string
+}
 
 type download struct {
 	done chan struct{}
 	err  error
 }
 
-// RestoreWithPrefetch restores walName, the WAL file PostgreSQL requested, into
-// destinationPath, and prefetches the files in prefetchList into the spool in the
-// background. It returns as soon as the requested file is restored or known to be
-// missing, without waiting for the prefetch. onPrefetched is called with the outcome of
-// every prefetch it starts, and it returns how many it started.
+// RestoreWithPrefetch restores walName, the WAL file PostgreSQL requested and did not
+// find in the spool, into destinationPath, and prefetches p in the background. It returns
+// as soon as the requested file is restored or known to be missing, without waiting for
+// the prefetch, together with the number of prefetches it started. Once PostgreSQL asks
+// for a file whose prefetch failed, the prefetch goes past it again.
 func (restorer *WALRestorer) RestoreWithPrefetch(
 	ctx context.Context,
 	walName, destinationPath string,
-	prefetchList []string,
-	options []string,
-	onPrefetched func(walName string, err error),
+	p Prefetch,
 ) (prefetching int, err error) {
-	prefetching = restorer.prefetch(ctx, prefetchList, options, onPrefetched)
-	return prefetching, restorer.restoreAndLog(ctx, walName, destinationPath, options, true)
+	prefetches.Lock()
+	if state := restorer.prefetchState(ctx); state.failed != "" && walName >= state.failed {
+		state.failed = ""
+	}
+	prefetches.Unlock()
+
+	prefetching = restorer.Prefetch(ctx, p)
+	return prefetching, restorer.restoreAndLog(ctx, walName, destinationPath, p.Options, true)
 }
 
-// prefetch starts a background download into the spool for every file in walNames that
-// is neither in the spool nor being downloaded already, keeping at most len(walNames)
-// downloads running across calls.
-func (restorer *WALRestorer) prefetch(
-	ctx context.Context,
-	walNames []string,
-	options []string,
-	onDone func(walName string, err error),
-) (started int) {
-	ctx = context.WithoutCancel(ctx)
+// Prefetch replaces the files wanted in the spool with p.WALs and starts downloading
+// them, nearest first, skipping the ones already in the spool or being downloaded. It
+// returns how many downloads it started.
+func (restorer *WALRestorer) Prefetch(ctx context.Context, p Prefetch) (started int) {
+	prefetches.Lock()
+	defer prefetches.Unlock()
 
-	downloads.Lock()
-	defer downloads.Unlock()
-	for _, walName := range walNames {
-		if len(downloads.running) >= len(walNames) {
+	state := restorer.prefetchState(ctx)
+	state.restorer, state.ctx, state.wanted = restorer, context.WithoutCancel(ctx), p
+	return state.fill()
+}
+
+// prefetchState returns the prefetch state of the restorer's spool. The first call for a
+// spool removes the temporary files that downloads interrupted by a restart of the
+// sidecar left there. Must be called with prefetches locked.
+func (restorer *WALRestorer) prefetchState(ctx context.Context) *prefetchState {
+	directory := restorer.spool.Directory()
+	state, ok := prefetches.bySpool[directory]
+	if !ok {
+		if err := restorer.spool.RemoveTemp(); err != nil {
+			log.FromContext(ctx).Warning("Cannot remove temporary files from the spool", "err", err)
+		}
+		state = &prefetchState{restorer: restorer, running: map[string]*download{}}
+		prefetches.bySpool[directory] = state
+	}
+	return state
+}
+
+// fill starts downloads for the wanted files until the prefetch limit is reached,
+// stopping at the file whose prefetch failed. Must be called with prefetches locked.
+func (state *prefetchState) fill() (started int) {
+	limit := max(state.wanted.Parallel-1, 1)
+	for _, walName := range state.wanted.WALs {
+		if len(state.running) >= limit || (state.failed != "" && walName >= state.failed) {
 			break
 		}
-		key := restorer.spool.FileName(walName)
-		if _, isRunning := downloads.running[key]; isRunning {
+		if _, isRunning := state.running[walName]; isRunning {
 			continue
 		}
-		if inSpool, err := restorer.spool.Contains(spoolName(walName)); err == nil && inSpool {
+		if inSpool, err := state.restorer.spool.Contains(spoolName(walName)); err == nil && inSpool {
 			continue
 		}
-
-		running := &download{done: make(chan struct{})}
-		downloads.running[key] = running
+		state.start(walName)
 		started++
-		go func() {
-			running.err = restorer.restoreIntoSpool(ctx, walName, options)
-			downloads.Lock()
-			delete(downloads.running, key)
-			downloads.Unlock()
-			close(running.done)
-			if onDone != nil {
-				onDone(walName, running.err)
-			}
-		}()
 	}
-
 	return started
+}
+
+// start downloads walName into the spool in the background. When the download ends, it
+// refills the prefetch from the files wanted at that point. Must be called with
+// prefetches locked.
+func (state *prefetchState) start(walName string) {
+	restorer, ctx, p := state.restorer, state.ctx, state.wanted
+	running := &download{done: make(chan struct{})}
+	state.running[walName] = running
+
+	go func() {
+		running.err = restorer.restoreIntoSpool(ctx, walName, p.Options)
+
+		prefetches.Lock()
+		delete(state.running, walName)
+		if running.err != nil && (state.failed == "" || walName < state.failed) {
+			state.failed = walName
+		}
+		state.fill()
+		prefetches.Unlock()
+
+		close(running.done)
+		if p.OnDone != nil {
+			p.OnDone(walName, running.err)
+		}
+	}()
 }
 
 // restoreIntoSpool downloads a WAL file into the spool. archive-get writes its destination
