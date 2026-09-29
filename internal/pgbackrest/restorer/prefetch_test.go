@@ -54,6 +54,10 @@ var _ = Describe("WAL prefetch", func() {
 		return strings.Count(string(content), walName+"\n")
 	}
 
+	restore := func(ctx SpecContext, walName string, p Prefetch) (int, error) {
+		return restorer.RestoreWithPrefetch(ctx, walName, filepath.Join(GinkgoT().TempDir(), "RECOVERYXLOG"), p)
+	}
+
 	BeforeEach(func(ctx SpecContext) {
 		binDir := GinkgoT().TempDir()
 		Expect(os.WriteFile(filepath.Join(binDir, "pgbackrest"), []byte(fakePgbackrest), 0o755)).To(Succeed()) //nolint:gosec
@@ -67,9 +71,12 @@ var _ = Describe("WAL prefetch", func() {
 
 		DeferCleanup(func() {
 			Eventually(func() int {
-				downloads.Lock()
-				defer downloads.Unlock()
-				return len(downloads.running)
+				prefetches.Lock()
+				defer prefetches.Unlock()
+				if state, ok := prefetches.bySpool[spoolDir]; ok {
+					return len(state.running)
+				}
+				return 0
 			}).WithTimeout(5 * time.Second).Should(BeZero())
 		})
 	})
@@ -77,7 +84,8 @@ var _ = Describe("WAL prefetch", func() {
 	It("returns the requested WAL without waiting for the prefetch", func(ctx SpecContext) {
 		destination := filepath.Join(GinkgoT().TempDir(), "RECOVERYXLOG")
 		start := time.Now()
-		started, err := restorer.RestoreWithPrefetch(ctx, "wal-1", destination, []string{"wal-2-slow"}, nil, nil)
+		started, err := restorer.RestoreWithPrefetch(ctx, "wal-1", destination,
+			Prefetch{WALs: []string{"wal-2-slow"}, Parallel: 2})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(started).To(Equal(1))
 		Expect(time.Since(start)).To(BeNumerically("<", time.Second))
@@ -86,15 +94,13 @@ var _ = Describe("WAL prefetch", func() {
 
 	It("reports a missing requested WAL without waiting for the prefetch", func(ctx SpecContext) {
 		start := time.Now()
-		_, err := restorer.RestoreWithPrefetch(
-			ctx, "wal-1-missing", filepath.Join(GinkgoT().TempDir(), "RECOVERYXLOG"), []string{"wal-2-slow"}, nil, nil)
+		_, err := restore(ctx, "wal-1-missing", Prefetch{WALs: []string{"wal-2-slow"}, Parallel: 2})
 		Expect(err).To(MatchError(ErrWALNotFound))
 		Expect(time.Since(start)).To(BeNumerically("<", time.Second))
 	})
 
 	It("puts a prefetched WAL in the spool only once it is complete", func(ctx SpecContext) {
-		_, err := restorer.RestoreWithPrefetch(
-			ctx, "wal-1", filepath.Join(GinkgoT().TempDir(), "RECOVERYXLOG"), []string{"wal-2-slow"}, nil, nil)
+		_, err := restore(ctx, "wal-1", Prefetch{WALs: []string{"wal-2-slow"}, Parallel: 2})
 		Expect(err).NotTo(HaveOccurred())
 
 		Consistently(filepath.Join(spoolDir, "wal-2-slow")).WithTimeout(time.Second).ShouldNot(BeAnExistingFile())
@@ -105,9 +111,7 @@ var _ = Describe("WAL prefetch", func() {
 	})
 
 	It("waits for a WAL that is being prefetched instead of downloading it again", func(ctx SpecContext) {
-		_, err := restorer.RestoreWithPrefetch(
-			ctx, "wal-1", filepath.Join(GinkgoT().TempDir(), "RECOVERYXLOG"),
-			[]string{"wal-2-slow", "wal-3-gone"}, nil, nil)
+		_, err := restore(ctx, "wal-1", Prefetch{WALs: []string{"wal-2-slow", "wal-3-gone"}, Parallel: 3})
 		Expect(err).NotTo(HaveOccurred())
 
 		destination := filepath.Join(GinkgoT().TempDir(), "RECOVERYXLOG")
@@ -123,18 +127,59 @@ var _ = Describe("WAL prefetch", func() {
 
 	It("does not prefetch WAL files that are in the spool or being downloaded", func(ctx SpecContext) {
 		Expect(os.WriteFile(filepath.Join(spoolDir, "wal-2"), []byte("spooled"), 0o600)).To(Succeed())
-		destination := filepath.Join(GinkgoT().TempDir(), "RECOVERYXLOG")
 
-		started, err := restorer.RestoreWithPrefetch(ctx, "wal-1", destination, []string{"wal-2", "wal-3-slow"}, nil, nil)
+		started, err := restore(ctx, "wal-1", Prefetch{WALs: []string{"wal-2", "wal-3-slow"}, Parallel: 3})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(started).To(Equal(1))
 
-		started, err = restorer.RestoreWithPrefetch(ctx, "wal-4", destination, []string{"wal-3-slow", "wal-5"}, nil, nil)
+		started, err = restore(ctx, "wal-4", Prefetch{WALs: []string{"wal-3-slow", "wal-5"}, Parallel: 3})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(started).To(Equal(1))
 
 		Eventually(func() int { return callsFor("wal-3-slow") + callsFor("wal-5") }).
 			WithTimeout(5 * time.Second).Should(Equal(2))
 		Expect(callsFor("wal-2")).To(BeZero())
+	})
+
+	It("keeps at most Parallel - 1 prefetches running", func(ctx SpecContext) {
+		started, err := restore(ctx, "wal-1",
+			Prefetch{WALs: []string{"wal-2-slow", "wal-3-slow", "wal-4-slow", "wal-5-slow"}, Parallel: 3})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(started).To(Equal(2))
+	})
+
+	It("starts the next WAL whenever a prefetch completes", func(ctx SpecContext) {
+		_, err := restore(ctx, "wal-1",
+			Prefetch{WALs: []string{"wal-2-slow", "wal-3", "wal-4", "wal-5", "wal-6"}, Parallel: 3})
+		Expect(err).NotTo(HaveOccurred())
+
+		Eventually(func() []string {
+			files, _ := filepath.Glob(filepath.Join(spoolDir, "wal-[3-6]"))
+			return files
+		}).WithTimeout(1500 * time.Millisecond).Should(HaveLen(4))
+		Expect(filepath.Join(spoolDir, "wal-2-slow")).NotTo(BeAnExistingFile())
+	})
+
+	It("stops at a WAL whose prefetch failed until PostgreSQL asks for it", func(ctx SpecContext) {
+		_, err := restore(ctx, "wal-1",
+			Prefetch{WALs: []string{"wal-2", "wal-3-missing", "wal-4", "wal-5"}, Parallel: 2})
+		Expect(err).NotTo(HaveOccurred())
+
+		Eventually(filepath.Join(spoolDir, "wal-2")).WithTimeout(time.Second).Should(BeAnExistingFile())
+		Consistently(func() int { return callsFor("wal-4") }).WithTimeout(500 * time.Millisecond).Should(BeZero())
+		Expect(callsFor("wal-3-missing")).To(Equal(1))
+
+		_, err = restore(ctx, "wal-3-missing", Prefetch{WALs: []string{"wal-4", "wal-5"}, Parallel: 2})
+		Expect(err).To(MatchError(ErrWALNotFound))
+		Eventually(func() int { return callsFor("wal-4") + callsFor("wal-5") }).
+			WithTimeout(time.Second).Should(Equal(2))
+	})
+
+	It("removes temporary files that an earlier run left in the spool", func(ctx SpecContext) {
+		leftover := filepath.Join(spoolDir, "wal-9.123.tmp")
+		Expect(os.WriteFile(leftover, []byte("first half "), 0o600)).To(Succeed())
+
+		restorer.Prefetch(ctx, Prefetch{Parallel: 2})
+		Expect(leftover).NotTo(BeAnExistingFile())
 	})
 })

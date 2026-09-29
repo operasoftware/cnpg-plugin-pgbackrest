@@ -104,6 +104,25 @@ func (spool *WALSpool) CreateTemp(walName string) (*os.File, error) {
 	return os.CreateTemp(spool.spoolDirectory, path.Base(walName)+".*.tmp")
 }
 
+// RemoveTemp removes the temporary files that CreateTemp left in the spool directory.
+func (spool *WALSpool) RemoveTemp() error {
+	files, err := filepath.Glob(path.Join(spool.spoolDirectory, "*.tmp"))
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+// Directory returns the spool directory.
+func (spool *WALSpool) Directory() string {
+	return spool.spoolDirectory
+}
+
 // FileName gets the name of the file for the given WAL inside the spool
 func (spool *WALSpool) FileName(walName string) string {
 	return path.Join(spool.spoolDirectory, walName)
