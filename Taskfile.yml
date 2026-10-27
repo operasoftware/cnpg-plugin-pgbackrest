@@ -26,7 +26,7 @@ tasks:
       # image tag, which isn't reproducible across CI runs. Kept in sync with the
       # Makefile's GOLANGCI_LINT_VERSION: same depName/datasource, combined into one PR.
       # renovate: datasource=github-tags depName=golangci/golangci-lint versioning=semver
-      GOLANGCI_LINT_VERSION: v2.12.2
+      GOLANGCI_LINT_VERSION: v2.15.0
     cmds:
       - >
         output=$(GITHUB_REF= dagger -sc "github.com/sagikazarmark/daggerverse/golangci-lint@${DAGGER_GOLANGCI_LINT_SHA}
