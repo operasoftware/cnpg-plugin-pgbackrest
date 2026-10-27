@@ -34,7 +34,7 @@ COPY ../internal/ internal/
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o manager cmd/manager/main.go
 
-FROM debian:12-slim AS pgbackrestinstaller
+FROM debian:13-slim AS pgbackrestinstaller
 RUN apt-get update && \
     apt-get install -y postgresql-common && \
     /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && \
