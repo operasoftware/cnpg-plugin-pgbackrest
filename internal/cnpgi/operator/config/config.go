@@ -127,6 +127,13 @@ func (config *PluginConfiguration) GetReferredArchiveObjectsKey() []types.Namesp
 	return result
 }
 
+// HasAnyPgbackrestObject reports whether any pgbackrest Archive is referenced.
+func (config *PluginConfiguration) HasAnyPgbackrestObject() bool {
+	return len(config.PgbackrestObjectName) > 0 ||
+		len(config.RecoveryPgbackrestObjectName) > 0 ||
+		len(config.ReplicaSourcePgbackrestObjectName) > 0
+}
+
 // NewFromClusterJSON decodes a JSON representation of a cluster.
 func NewFromClusterJSON(clusterJSON []byte) (*PluginConfiguration, error) {
 	var result cnpgv1.Cluster
@@ -263,7 +270,7 @@ func getReplicaSourcePlugin(cluster *cnpgv1.Cluster) *cnpgv1.PluginConfiguration
 func (config *PluginConfiguration) Validate() error {
 	err := NewConfigurationError()
 
-	if len(config.PgbackrestObjectName) == 0 && len(config.RecoveryPgbackrestObjectName) == 0 {
+	if !config.HasAnyPgbackrestObject() {
 		return err.WithMessage("no reference to pgbackrestObjectName have been included")
 	}
 

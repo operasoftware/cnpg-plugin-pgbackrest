@@ -19,10 +19,12 @@ package backup
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	v1 "github.com/cloudnative-pg/api/pkg/api/v1"
+	"github.com/cloudnative-pg/cloudnative-pg/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -375,4 +377,88 @@ var _ = Describe("Backup and restore", func() {
 			&s3BackupPluginTargetTimeRestore{},
 		),
 	)
+
+	It("should restore into a recovery-only cluster and drop the sidecar after bootstrap", func(ctx SpecContext) {
+		testResources := s3BackupPluginBackupPluginRestore{}.createBackupRestoreTestResources(namespace.Name)
+
+		By("starting the object store deployment")
+		Expect(testResources.ObjectStoreResources.Create(ctx, cl)).To(Succeed())
+
+		By("creating the Archive")
+		Expect(cl.Create(ctx, testResources.Archive)).To(Succeed())
+
+		By("creating the source cluster")
+		src := testResources.SrcCluster
+		Expect(cl.Create(ctx, src)).To(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(cl.Get(ctx, types.NamespacedName{Name: src.Name, Namespace: src.Namespace}, src)).To(Succeed())
+			g.Expect(internalCluster.IsReady(*src)).To(BeTrue())
+		}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+
+		clientSet, cfg, err := internalClient.NewClientSet()
+		Expect(err).NotTo(HaveOccurred())
+		srcPrimary := command.ContainerLocator{
+			NamespaceName: src.Namespace,
+			PodName:       fmt.Sprintf("%v-1", src.Name),
+			ContainerName: "postgres",
+		}
+
+		By("adding data and taking a backup")
+		_, _, err = command.ExecuteInContainer(ctx, *clientSet, cfg, srcPrimary, nil,
+			[]string{"psql", "-tAc", "CREATE TABLE test (i int); INSERT INTO test VALUES (1);"})
+		Expect(err).NotTo(HaveOccurred())
+
+		backup := testResources.SrcBackup
+		Expect(cl.Create(ctx, backup)).To(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(cl.Get(ctx, types.NamespacedName{Name: backup.Name, Namespace: backup.Namespace},
+				backup)).To(Succeed())
+			g.Expect(backup.Status.Phase).To(BeEquivalentTo(v1.BackupPhaseCompleted))
+		}).Within(2 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
+
+		By("archiving a WAL segment written after the backup")
+		_, _, err = command.ExecuteInContainer(ctx, *clientSet, cfg, srcPrimary, nil,
+			[]string{"psql", "-tAc", "SELECT pg_switch_wal()" + "; INSERT INTO test VALUES (2)"})
+		Expect(err).NotTo(HaveOccurred())
+		_, _, err = command.ExecuteInContainer(ctx, *clientSet, cfg, srcPrimary, nil,
+			[]string{"psql", "-tAc", "SELECT pg_switch_wal()"})
+		Expect(err).NotTo(HaveOccurred())
+
+		By("restoring into a cluster that does not archive")
+		dst := newRecoveryOnlyCluster(namespace.Name)
+		Expect(cl.Create(ctx, dst)).To(Succeed())
+
+		By("having the cluster ready without the plugin sidecar in any pod")
+		Eventually(func(g Gomega) {
+			g.Expect(cl.Get(ctx, types.NamespacedName{Name: dst.Name, Namespace: dst.Namespace}, dst)).To(Succeed())
+			g.Expect(internalCluster.IsReady(*dst)).To(BeTrue())
+
+			var pods corev1.PodList
+			g.Expect(cl.List(ctx, &pods,
+				client.InNamespace(dst.Namespace),
+				client.MatchingLabels{
+					utils.ClusterLabelName: dst.Name,
+					utils.PodRoleLabelName: string(utils.PodRoleInstance),
+				},
+			)).To(Succeed())
+			g.Expect(pods.Items).To(HaveLen(dst.Spec.Instances))
+			for _, pod := range pods.Items {
+				isSidecar := func(c corev1.Container) bool { return c.Name == "plugin-pgbackrest" }
+				g.Expect(slices.ContainsFunc(pod.Spec.InitContainers, isSidecar)).To(BeFalse(), pod.Name)
+				g.Expect(slices.ContainsFunc(pod.Spec.Containers, isSidecar)).To(BeFalse(), pod.Name)
+			}
+		}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+
+		By("verifying the restored data")
+		output, _, err := command.ExecuteInContainer(ctx, *clientSet, cfg,
+			command.ContainerLocator{
+				NamespaceName: dst.Namespace,
+				PodName:       dst.Status.CurrentPrimary,
+				ContainerName: "postgres",
+			},
+			nil,
+			[]string{"psql", "-tAc", "SELECT count(*) FROM test;"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(output).To(BeEquivalentTo("2\n"))
+	})
 })

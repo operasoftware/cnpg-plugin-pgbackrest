@@ -27,7 +27,9 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	pgbackrestv1 "github.com/operasoftware/cnpg-plugin-pgbackrest/api/v1"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
@@ -226,6 +228,165 @@ var _ = Describe("LifecycleImplementation", func() {
 			response, err := reconcilePod(ctx, cluster, request, pluginConfiguration, nil, nil, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(response).To(BeNil())
+		})
+	})
+
+	DescribeTable("shouldInjectSidecar",
+		func(pluginConfiguration config.PluginConfiguration, currentPrimary string, expected bool) {
+			target := &cnpgv1.Cluster{Status: cnpgv1.ClusterStatus{CurrentPrimary: currentPrimary}}
+			Expect(shouldInjectSidecar(target, &pluginConfiguration)).To(Equal(expected))
+		},
+		Entry("archive, bootstrapped",
+			config.PluginConfiguration{PgbackrestObjectName: "archive"}, "cluster-1", true),
+		Entry("replica source only, bootstrapped",
+			config.PluginConfiguration{ReplicaSourcePgbackrestObjectName: "source"}, "cluster-1", true),
+		Entry("archive and recovery, bootstrapped",
+			config.PluginConfiguration{
+				PgbackrestObjectName:         "archive",
+				RecoveryPgbackrestObjectName: "recovery",
+			}, "cluster-1", true),
+		Entry("replica source and recovery, bootstrapped",
+			config.PluginConfiguration{
+				ReplicaSourcePgbackrestObjectName: "source",
+				RecoveryPgbackrestObjectName:      "recovery",
+			}, "cluster-1", true),
+		Entry("recovery only, bootstrapping",
+			config.PluginConfiguration{RecoveryPgbackrestObjectName: "recovery"}, "", true),
+		Entry("recovery only, bootstrapped",
+			config.PluginConfiguration{RecoveryPgbackrestObjectName: "recovery"}, "cluster-1", false),
+		Entry("nothing referenced", config.PluginConfiguration{}, "", false),
+	)
+
+	Describe("sidecarArchive", func() {
+		archive := &pgbackrestv1.Archive{ObjectMeta: metav1.ObjectMeta{Name: "archive"}}
+		recoveryArchive := &pgbackrestv1.Archive{ObjectMeta: metav1.ObjectMeta{Name: "recovery"}}
+		replicaSourceArchive := &pgbackrestv1.Archive{ObjectMeta: metav1.ObjectMeta{Name: "source"}}
+
+		It("takes sidecar settings from the archive when the cluster archives", func() {
+			pluginConfiguration := &config.PluginConfiguration{
+				PgbackrestObjectName:              "archive",
+				RecoveryPgbackrestObjectName:      "recovery",
+				ReplicaSourcePgbackrestObjectName: "source",
+			}
+			Expect(sidecarArchive(pluginConfiguration, archive, recoveryArchive, replicaSourceArchive)).
+				To(BeIdenticalTo(archive))
+		})
+
+		It("takes sidecar settings from the recovery Archive when there is no archive", func() {
+			pluginConfiguration := &config.PluginConfiguration{
+				RecoveryPgbackrestObjectName:      "recovery",
+				ReplicaSourcePgbackrestObjectName: "source",
+			}
+			Expect(sidecarArchive(pluginConfiguration, archive, recoveryArchive, replicaSourceArchive)).
+				To(BeIdenticalTo(recoveryArchive))
+		})
+
+		It("takes sidecar settings from the replica-source Archive when it is the only one", func() {
+			pluginConfiguration := &config.PluginConfiguration{ReplicaSourcePgbackrestObjectName: "source"}
+			Expect(sidecarArchive(pluginConfiguration, archive, recoveryArchive, replicaSourceArchive)).
+				To(BeIdenticalTo(replicaSourceArchive))
+		})
+	})
+
+	Describe("collectAdditionalEnvs", func() {
+		withEnv := func(envs ...corev1.EnvVar) *pgbackrestv1.Archive {
+			return &pgbackrestv1.Archive{Spec: pgbackrestv1.ArchiveSpec{
+				InstanceSidecarConfiguration: pgbackrestv1.InstanceSidecarConfiguration{Env: envs},
+			}}
+		}
+
+		It("collects the env of every Archive in order, including the replica source", func(ctx SpecContext) {
+			archiveEnv := corev1.EnvVar{Name: "ARCHIVE", Value: "a"}
+			recoveryEnv := corev1.EnvVar{Name: "RECOVERY", Value: "r"}
+			replicaSourceEnv := corev1.EnvVar{Name: "HTTPS_PROXY", Value: "proxy"}
+
+			envs, err := lifecycleImpl.collectAdditionalEnvs(ctx,
+				withEnv(archiveEnv), withEnv(recoveryEnv), withEnv(replicaSourceEnv))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(envs).To(Equal([]corev1.EnvVar{archiveEnv, recoveryEnv, replicaSourceEnv}))
+		})
+
+		It("skips missing Archives", func(ctx SpecContext) {
+			replicaSourceEnv := corev1.EnvVar{Name: "HTTPS_PROXY", Value: "proxy"}
+
+			envs, err := lifecycleImpl.collectAdditionalEnvs(ctx, nil, nil, withEnv(replicaSourceEnv))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(envs).To(Equal([]corev1.EnvVar{replicaSourceEnv}))
+		})
+	})
+
+	Describe("reconcilePod for a replica-source-only cluster", func() {
+		It("configures the sidecar from the replica-source Archive", func(ctx SpecContext) {
+			scheme := runtime.NewScheme()
+			Expect(pgbackrestv1.AddToScheme(scheme)).To(Succeed())
+			proxyEnv := corev1.EnvVar{Name: "HTTPS_PROXY", Value: "http://proxy:3128"}
+			source := &pgbackrestv1.Archive{
+				ObjectMeta: metav1.ObjectMeta{Name: "source", Namespace: "default"},
+				Spec: pgbackrestv1.ArchiveSpec{InstanceSidecarConfiguration: pgbackrestv1.InstanceSidecarConfiguration{
+					Env:             []corev1.EnvVar{proxyEnv},
+					SecurityContext: &corev1.SecurityContext{RunAsNonRoot: ptr.To(true)},
+				}},
+			}
+			impl := LifecycleImplementation{
+				Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(source).Build(),
+			}
+			cluster.Namespace = "default"
+			pod := &corev1.Pod{
+				TypeMeta:   podTypeMeta,
+				ObjectMeta: metav1.ObjectMeta{Name: "test-pod"},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "postgres"}}},
+			}
+			podJSON, err := json.Marshal(pod)
+			Expect(err).NotTo(HaveOccurred())
+
+			response, err := impl.reconcilePod(ctx, cluster,
+				&lifecycle.OperatorLifecycleRequest{ObjectDefinition: podJSON},
+				&config.PluginConfiguration{ReplicaSourcePgbackrestObjectName: "source"})
+			Expect(err).NotTo(HaveOccurred())
+
+			var patch []struct {
+				Path  string             `json:"path"`
+				Value []corev1.Container `json:"value"`
+			}
+			Expect(json.Unmarshal(response.JsonPatch, &patch)).To(Succeed())
+			var sidecars []corev1.Container
+			for _, op := range patch {
+				if op.Path == "/spec/initContainers" {
+					sidecars = op.Value
+				}
+			}
+			Expect(sidecars).To(HaveLen(1))
+			Expect(sidecars[0].Env).To(ContainElement(proxyEnv))
+			Expect(sidecars[0].SecurityContext).To(Equal(source.Spec.InstanceSidecarConfiguration.SecurityContext))
+		})
+	})
+
+	Describe("reconcilePod for a recovery-only cluster", func() {
+		var request *lifecycle.OperatorLifecycleRequest
+		recoveryOnly := &config.PluginConfiguration{RecoveryPgbackrestObjectName: "minio-store-source"}
+
+		BeforeEach(func() {
+			pod := &corev1.Pod{
+				TypeMeta:   podTypeMeta,
+				ObjectMeta: metav1.ObjectMeta{Name: "test-pod"},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "postgres"}}},
+			}
+			podJSON, err := json.Marshal(pod)
+			Expect(err).NotTo(HaveOccurred())
+			request = &lifecycle.OperatorLifecycleRequest{ObjectDefinition: podJSON}
+		})
+
+		It("injects the sidecar while the cluster bootstraps", func(ctx SpecContext) {
+			response, err := reconcilePod(ctx, cluster, request, recoveryOnly, nil, nil, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(response.JsonPatch)).To(ContainSubstring("plugin-pgbackrest"))
+		})
+
+		It("does not inject the sidecar into a bootstrapped recovery-only cluster", func(ctx SpecContext) {
+			cluster.Status.CurrentPrimary = "cluster-1"
+			response, err := reconcilePod(ctx, cluster, request, recoveryOnly, nil, nil, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response.JsonPatch).To(BeEmpty())
 		})
 	})
 

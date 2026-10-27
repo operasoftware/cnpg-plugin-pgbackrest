@@ -22,11 +22,13 @@ import (
 
 	"github.com/cloudnative-pg/cnpg-i-machinery/pkg/pluginhelper/http"
 	"github.com/cloudnative-pg/cnpg-i/pkg/backup"
+	restorejob "github.com/cloudnative-pg/cnpg-i/pkg/restore/job"
 	"github.com/cloudnative-pg/cnpg-i/pkg/wal"
 	"google.golang.org/grpc"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/common"
+	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/restore"
 )
 
 // CNPGI is the implementation of the PostgreSQL sidecar
@@ -54,6 +56,14 @@ func (c *CNPGI) Start(ctx context.Context) error {
 			Client:       c.Client,
 			InstanceName: c.InstanceName,
 			PGDataPath:   c.PGDataPath,
+		})
+		// CNPG 1.31+ bootstraps new instances inside the instance pod (cloudnative-pg#11319),
+		// so the Restore RPC reaches this sidecar instead of the full-recovery Job one.
+		restorejob.RegisterRestoreJobHooksServer(server, &restore.JobHookImpl{
+			Client:               c.Client,
+			SpoolDirectory:       c.SpoolDirectory,
+			PgDataPath:           c.PGDataPath,
+			PgWalFolderToSymlink: common.PgWalVolumePgWalPath,
 		})
 		common.AddHealthCheck(server)
 		return nil
