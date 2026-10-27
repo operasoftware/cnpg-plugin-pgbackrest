@@ -162,7 +162,7 @@ GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 # renovate: datasource=go depName=sigs.k8s.io/kustomize/kustomize/v5 versioning=semver
 KUSTOMIZE_VERSION ?= v5.8.1
 # renovate: datasource=github-tags depName=kubernetes-sigs/controller-tools versioning=semver
-CONTROLLER_TOOLS_VERSION ?= v0.21.0
+CONTROLLER_TOOLS_VERSION ?= v0.23.0
 # Kept in sync with go.mod's sigs.k8s.io/controller-runtime require and
 # Taskfile.yml's SETUP_ENVTEST_VERSION: same depName/datasource by renovate.
 # renovate: datasource=go depName=sigs.k8s.io/controller-runtime versioning=semver
