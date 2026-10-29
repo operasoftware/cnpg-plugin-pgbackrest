@@ -169,7 +169,7 @@ func (r ReconcilerImplementation) ensureRole(
 			return err
 		}
 
-		return r.Client.Create(ctx, newRole)
+		return ignoreAlreadyExists(r.Client.Create(ctx, newRole))
 	}
 
 	if equality.Semantic.DeepEqual(newRole.Rules, role.Rules) {
@@ -217,5 +217,14 @@ func (r ReconcilerImplementation) createRoleBinding(
 	if err := ctrl.SetControllerReference(cluster, roleBinding, r.Client.Scheme()); err != nil {
 		return err
 	}
-	return r.Client.Create(ctx, roleBinding)
+	return ignoreAlreadyExists(r.Client.Create(ctx, roleBinding))
+}
+
+// ignoreAlreadyExists treats an object created concurrently, by another replica of
+// the plugin, as success. The next reconciliation brings it up to date if needed.
+func ignoreAlreadyExists(err error) error {
+	if apierrs.IsAlreadyExists(err) {
+		return nil
+	}
+	return err
 }

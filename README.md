@@ -152,6 +152,19 @@ deployment "pgbackrest" successfully rolled out
 
 This confirms that the plugin is deployed and operational.
 
+### Running More Than One Replica
+
+The `pgbackrest` Deployment can run several replicas. Every replica serves
+the CNPG-I interface, so the operator can still reach the plugin when one pod
+or its node goes away, and the `Archive` controller runs on the replica that
+holds the leader lease. The CloudNativePG operator does not reconcile a
+`Cluster` while a plugin it uses is unreachable, which includes setting the
+role label on a new primary that the `-rw` Service selects, so a second replica
+on another node shortens that gap after a node failure.
+
+> [!NOTE]
+> The manifest runs the plugin with a single replica by default.
+
 ## Usage
 
 ### Defining the `Archive`
