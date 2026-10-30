@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.9.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.8.0...v0.9.0) (2026-10-30)
+
+
+### Features
+
+* Serve restore hooks from the instance sidecar ([#154](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/154)) ([9a58803](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/9a58803c3aaf12aa4d347d3493cf4d77129393f8))
+
+
+### Bug Fixes
+
+* **deps:** Update all non-major go dependencies ([#165](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/165)) ([bde5a07](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/bde5a076c136b28c67a43b3a7ee8a2b6d252c63f))
+* **deps:** Update k8s.io/utils digest to ca04ba5 ([#175](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/175)) ([7cd46f7](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/7cd46f7eccae28bf6671a544b3fbef4dd3bca4aa))
+* **deps:** Update kubernetes monorepo to v0.37.1 ([#176](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/176)) ([d4ce3dc](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/d4ce3dc908ff0eeef5683aaede8aefee28729705))
+* **deps:** Update module google.golang.org/grpc to v1.83.1 ([#145](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/145)) ([4677135](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/46771350a020fa7fd0bde0f0ae4020b4633de321))
+* **deps:** Update module sigs.k8s.io/controller-runtime to v0.25.2 ([#170](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/170)) ([ddce10b](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/ddce10b903efaf4c62f8b498ed1272095c81e5ff))
+* Reap detached pgBackRest processes in the instance sidecar ([8d2831a](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/8d2831a4812b5f8ec9444cd96909f452cbcd2625)), refs [#157](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/157)
+* Serve the CNPG-I interface from every replica of the plugin ([401a71a](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/401a71a35fe1f17bb5b2d7c80b243fd6d6368d54)), refs [#162](https://github.com/operasoftware/cnpg-plugin-pgbackrest/issues/162)
+
+
+### Performance Improvements
+
+* Skip the WAL archive destination check while archiving succeeds ([3d89679](https://github.com/operasoftware/cnpg-plugin-pgbackrest/commit/3d8967937c8ad5ee1329bb2cbc5db17d85e52e77))
+
 ## [0.8.0](https://github.com/operasoftware/cnpg-plugin-pgbackrest/compare/v0.7.0...v0.8.0) (2026-08-21)
 
 
