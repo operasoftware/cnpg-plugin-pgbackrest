@@ -40,6 +40,11 @@ type Command struct {
 	configuration   *pgbackrestApi.PgbackrestConfiguration
 	backupConfig    *cnpgApiV1.BackupPluginConfiguration
 	pgDataDirectory string
+	// standbyTopology, when non-nil, makes the backup run from a standby: the
+	// current primary is configured as a second pgBackRest host over TLS and
+	// --backup-standby is passed. When nil the command targets the local
+	// instance exactly as before.
+	standbyTopology *pgbackrestCommand.StandbyBackupTopology
 }
 
 // NewBackupCommand creates a new pgbackrest backup command
@@ -53,6 +58,14 @@ func NewBackupCommand(
 		backupConfig:    backupConfig,
 		pgDataDirectory: pgDataDirectory,
 	}
+}
+
+// WithStandbyBackup configures the command to take the backup from a standby,
+// coordinating control operations on the primary described by topology. When
+// not called, the command targets the local instance as before.
+func (b *Command) WithStandbyBackup(topology *pgbackrestCommand.StandbyBackupTopology) *Command {
+	b.standbyTopology = topology
+	return b
 }
 
 // GetDataConfiguration gets the configuration in the `Data` object of the pgbackrest configuration
@@ -146,6 +159,11 @@ func (b *Command) GetPgbackrestBackupOptions(
 		return nil, err
 	}
 
+	if b.standbyTopology != nil {
+		options = pgbackrestCommand.AppendStandbyPrimaryHostOptions(options, *b.standbyTopology)
+		options = append(options, pgbackrestCommand.BackupStandbyOption())
+	}
+
 	options, err = pgbackrestCommand.AppendLogOptionsFromConfiguration(ctx, options, b.configuration)
 	if err != nil {
 		return nil, err
@@ -197,6 +215,13 @@ func (b *Command) getStanzaCreateOptions(
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	// When taking the backup from a standby, stanza-create must also be able to
+	// reach the primary, so add it as a second host. --backup-standby is a
+	// backup-only option and is intentionally not added here.
+	if b.standbyTopology != nil {
+		options = pgbackrestCommand.AppendStandbyPrimaryHostOptions(options, *b.standbyTopology)
 	}
 
 	options, err = pgbackrestCommand.AppendLogOptionsFromConfiguration(
