@@ -179,6 +179,10 @@ var _ = Describe("Backup and restore", func() {
 			"using the plugin for backup and restore on S3",
 			&s3BackupPluginBackupPluginRestore{},
 		),
+		Entry(
+			"using the plugin for backup and restore on Azure Blob (Azurite)",
+			&azureBackupPluginBackupPluginRestore{},
+		),
 	)
 
 	DescribeTable("should perform point-in-time recovery",
@@ -375,6 +379,10 @@ var _ = Describe("Backup and restore", func() {
 		Entry(
 			"using TargetTime with plugin",
 			&s3BackupPluginTargetTimeRestore{},
+		),
+		Entry(
+			"using TargetTime with plugin on Azure Blob (Azurite)",
+			&azureBackupPluginTargetTimeRestore{},
 		),
 	)
 

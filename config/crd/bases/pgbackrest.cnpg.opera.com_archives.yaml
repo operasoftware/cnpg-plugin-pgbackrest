@@ -143,6 +143,56 @@ spec:
                         repository, including all data needed to properly connect and authenticate with
                         a selected object store.
                       properties:
+                        azureCredentials:
+                          description: The credentials to use to upload data to Azure
+                            Blob Storage
+                          properties:
+                            account:
+                              description: The reference to the secret containing
+                                the storage account name
+                              properties:
+                                key:
+                                  description: The key to select
+                                  type: string
+                                name:
+                                  description: Name of the referent.
+                                  type: string
+                              required:
+                              - key
+                              - name
+                              type: object
+                            key:
+                              description: The reference to the secret containing
+                                the account shared key or SAS token
+                              properties:
+                                key:
+                                  description: The key to select
+                                  type: string
+                                name:
+                                  description: Name of the referent.
+                                  type: string
+                              required:
+                              - key
+                              - name
+                              type: object
+                            keyType:
+                              default: shared
+                              description: KeyType specifies the type of key used,
+                                either "shared" (default) or "sas"
+                              enum:
+                              - shared
+                              - sas
+                              type: string
+                            uriStyle:
+                              description: |-
+                                Azure Repository URI style, either "host" (default) or "path".
+                                The "path" style is required when targeting Azure-compatible
+                                endpoints such as the Azurite emulator.
+                              enum:
+                              - host
+                              - path
+                              type: string
+                          type: object
                         bucket:
                           minLength: 1
                           type: string
@@ -315,6 +365,9 @@ spec:
                             uriStyle:
                               description: S3 Repository URI style, either "host"
                                 (default) or "path".
+                              enum:
+                              - host
+                              - path
                               type: string
                           type: object
                       required:

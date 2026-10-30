@@ -97,8 +97,43 @@ type S3Credentials struct {
 	Region string `json:"region,omitempty"`
 
 	// S3 Repository URI style, either "host" (default) or "path".
-	// TODO: Enforce values via Enum like iin compression.
 	// +optional
+	// +kubebuilder:validation:Enum=host;path
+	URIStyle string `json:"uriStyle,omitempty"`
+}
+
+// AzureKeyType is the type of key used for Azure credentials
+type AzureKeyType string
+
+const (
+	// AzureKeyTypeShared uses a storage account shared key
+	AzureKeyTypeShared = AzureKeyType("shared")
+	// AzureKeyTypeSAS uses a shared access signature token
+	AzureKeyTypeSAS = AzureKeyType("sas")
+)
+
+// AzureCredentials is the type for the credentials to be used to upload
+// files to Azure Blob Storage.
+type AzureCredentials struct {
+	// KeyType specifies the type of key used, either "shared" (default) or "sas"
+	// +optional
+	// +kubebuilder:default:=shared
+	// +kubebuilder:validation:Enum=shared;sas
+	KeyType AzureKeyType `json:"keyType,omitempty"`
+
+	// The reference to the secret containing the storage account name
+	// +optional
+	Account *machineryapi.SecretKeySelector `json:"account,omitempty"`
+
+	// The reference to the secret containing the account shared key or SAS token
+	// +optional
+	Key *machineryapi.SecretKeySelector `json:"key,omitempty"`
+
+	// Azure Repository URI style, either "host" (default) or "path".
+	// The "path" style is required when targeting Azure-compatible
+	// endpoints such as the Azurite emulator.
+	// +optional
+	// +kubebuilder:validation:Enum=host;path
 	URIStyle string `json:"uriStyle,omitempty"`
 }
 
@@ -107,6 +142,17 @@ type PgbackrestCredentials struct {
 	// The credentials to use to upload data to S3
 	// +optional
 	AWS *S3Credentials `json:"s3Credentials,omitempty"`
+
+	// The credentials to use to upload data to Azure Blob Storage
+	// +optional
+	Azure *AzureCredentials `json:"azureCredentials,omitempty"`
+}
+
+// HasConflictingCloudProviders reports whether more than one cloud provider
+// credential block is configured. A single pgBackRest repository can only
+// target one storage type, so having both set is an invalid configuration.
+func (c PgbackrestCredentials) HasConflictingCloudProviders() bool {
+	return c.AWS != nil && c.Azure != nil
 }
 
 // PgbackrestRetention an object containing the backup retention time for all backup
@@ -422,8 +468,8 @@ func (c *PgbackrestConfiguration) ShouldCreateStanzaOnBackup() bool {
 
 // ArePopulated checks if the passed set of credentials contains
 // something
-func (credentials PgbackrestCredentials) ArePopulated() bool {
-	return credentials.AWS != nil
+func (c PgbackrestCredentials) ArePopulated() bool {
+	return c.AWS != nil || c.Azure != nil
 }
 
 // AppendAdditionalRestoreCommandArgs adds custom arguments as pgbackrest restore command-line options
