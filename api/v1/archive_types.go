@@ -35,6 +35,14 @@ type InstanceSidecarConfiguration struct {
 	// SecurityContext for the sidecar container
 	// +optional
 	SecurityContext *corev1.SecurityContext `json:"securityContext,omitempty"`
+	// The catalogMaintenanceIntervalSeconds defines how often the sidecar
+	// running on the primary instance compares the Backup objects of the
+	// cluster with the pgBackRest catalog and deletes the ones that are
+	// not present in the catalog anymore. 0 disables the maintenance.
+	// +kubebuilder:default:=1800
+	// +kubebuilder:validation:XValidation:rule="self == 0 || self >= 60",message="catalogMaintenanceIntervalSeconds must be 0 (disabled) or at least 60"
+	// +optional
+	CatalogMaintenanceIntervalSeconds *int32 `json:"catalogMaintenanceIntervalSeconds,omitempty"`
 }
 
 // ArchiveSpec defines the desired state of Archive.

@@ -411,6 +411,19 @@ spec:
                 description: InstanceSidecarConfiguration defines the configuration
                   for the sidecar that runs in the instance pods.
                 properties:
+                  catalogMaintenanceIntervalSeconds:
+                    default: 1800
+                    description: |-
+                      The catalogMaintenanceIntervalSeconds defines how often the sidecar
+                      running on the primary instance compares the Backup objects of the
+                      cluster with the pgBackRest catalog and deletes the ones that are
+                      not present in the catalog anymore. 0 disables the maintenance.
+                    format: int32
+                    type: integer
+                    x-kubernetes-validations:
+                    - message: catalogMaintenanceIntervalSeconds must be 0 (disabled)
+                        or at least 60
+                      rule: self == 0 || self >= 60
                   env:
                     description: The environment to be explicitly passed to the sidecar
                     items:

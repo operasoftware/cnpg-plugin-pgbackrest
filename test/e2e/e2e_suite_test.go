@@ -50,7 +50,14 @@ var _ = SynchronizedBeforeSuite(func(ctx SpecContext) []byte {
 		Fail(fmt.Sprintf("failed to create Kubernetes client: %v", err))
 	}
 
-	if err = e2etestenv.Setup(ctx, cl); err != nil {
+	// CloudNativePG main moved the bootstrap of new instances from a Job to an init container
+	// (cloudnative-pg#11319); the plugin serves the restore hooks from the job sidecar only, so the
+	// e2e tests run against the latest release the plugin supports.
+	if err = e2etestenv.Setup(ctx, cl,
+		e2etestenv.WithCNPGKustomizationRef("v1.30.0"),
+		e2etestenv.WithCNPGImageName("ghcr.io/cloudnative-pg/cloudnative-pg"),
+		e2etestenv.WithCNPGImageTag("1.30.0"),
+	); err != nil {
 		Fail(fmt.Sprintf("failed to setup environment: %v", err))
 	}
 
