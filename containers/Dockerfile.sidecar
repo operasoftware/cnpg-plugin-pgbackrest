@@ -44,7 +44,7 @@ RUN apt-get update && \
 # Joint process
 # Now we put everything that was build from the origin into our
 # distroless container
-FROM gcr.io/distroless/cc-debian12:nonroot
+FROM gcr.io/distroless/cc-debian13:nonroot
 
 ENV SUMMARY="CloudNativePG pgbackrest plugin" \
     DESCRIPTION="Container image that provides the pgbackrest sidecar"
