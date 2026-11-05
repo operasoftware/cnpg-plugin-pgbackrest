@@ -205,12 +205,37 @@ spec:
       limits:
         memory: "2Gi"
         cpu: "2"
+    catalogMaintenanceIntervalSeconds: 1800
 ```
 
 > [!IMPORTANT]
 > Unlike Barman, pgBackRest requires object storage to be accessible over HTTPS. While
 > it's possible to disable key verification and use self-signed keys, using HTTP
 > endpoint is not possible.
+
+### Backup objects cleanup
+
+pgBackRest expires backups from the repository on its own, but it does not know about
+the CNPG `Backup` objects that point to them. The sidecar running on the primary periodically
+deletes the `completed` `Backup` objects of the cluster whose backup ID is not in the
+pgBackRest catalog anymore. The period is set by
+`instanceSidecarConfiguration.catalogMaintenanceIntervalSeconds` (default `1800`; `0`
+disables the cleanup, otherwise at least `60`).
+
+The plugin only performs the cleanup when the configuration is considered safe: the stanza
+matches and all repositories are reported as readable.
+
+> [!IMPORTANT]
+> Pointing an `Archive` at another location, removing one of its repositories or renaming the
+> stanza means the previously recorded objects can no longer be matched; adding or reordering
+> repositories does not.
+> Such `Backup` resources, as well as the ones created by plugin versions before this
+> feature, must be removed manually.
+
+> [!NOTE]
+> Only `Backup` objects labeled `cnpg.io/cluster=<cluster>` are considered. Both
+> `ScheduledBackup` and `kubectl cnpg backup` set the label; a hand-applied `Backup`
+> manifest without it is never cleaned up. Failed backups are left untouched.
 
 ### Configuring WAL Archiving
 
