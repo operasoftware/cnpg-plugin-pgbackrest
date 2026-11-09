@@ -342,7 +342,7 @@ tasks:
     desc: Run controller-gen
     env:
       # renovate: datasource=github-digest depName=controller-gen lookupName=cloudnative-pg/daggerverse currentValue=main
-      DAGGER_CONTROLLER_GEN_SHA: 038b434b39c3156210dffb86800071bec06cc224
+      DAGGER_CONTROLLER_GEN_SHA: 6f8e4a643a70ce118a68a2fcbae7531b2d1f8b6a
       # Kept in sync with the Makefile's CONTROLLER_TOOLS_VERSION: both are tracked by
       # renovate under the same depName/datasource, so bumps land in a single PR.
       # renovate: datasource=github-tags depName=kubernetes-sigs/controller-tools versioning=semver
