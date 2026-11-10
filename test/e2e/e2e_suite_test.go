@@ -37,6 +37,7 @@ import (
 	_ "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/tests/logconfig"
 	_ "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/tests/parallelarchive"
 	_ "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/tests/replicacluster"
+	_ "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/tests/sidecarrollout"
 	_ "github.com/operasoftware/cnpg-plugin-pgbackrest/test/e2e/internal/tests/walarchive"
 
 	. "github.com/onsi/ginkgo/v2"

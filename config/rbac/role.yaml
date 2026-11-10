@@ -51,6 +51,15 @@ rules:
 - apiGroups:
   - postgresql.cnpg.io
   resources:
+  - clusters
+  verbs:
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - postgresql.cnpg.io
+  resources:
   - clusters/finalizers
   verbs:
   - update
