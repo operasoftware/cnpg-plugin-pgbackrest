@@ -213,6 +213,21 @@ spec:
 > it's possible to disable key verification and use self-signed keys, using HTTP
 > endpoint is not possible.
 
+### Changing the sidecar configuration
+
+The sidecar container is configured when an instance pod is created, so a change to
+`instanceSidecarConfiguration` (resources, env, security context) needs the pods to be
+recreated. CloudNativePG does not watch `Archive` objects, so the plugin keeps the hash of the
+sidecar configuration of the referred `Archive` objects in the
+`pgbackrest.cnpg.opera.com/sidecar-configuration-hash` annotation of every `Cluster`. When the
+hash changes, CloudNativePG reconciles the cluster, detects the outdated sidecar and rolls out the
+instance pods according to `primaryUpdateStrategy`. With `supervised`, the primary keeps the old
+sidecar until a switchover.
+
+> [!NOTE]
+> The annotation is set on all the clusters using the plugin when it starts. Clusters whose
+> pods run a sidecar differing from the current `Archive` configuration are rolled out then.
+
 ### Backup objects cleanup
 
 pgBackRest expires backups from the repository on its own, but it does not know about
