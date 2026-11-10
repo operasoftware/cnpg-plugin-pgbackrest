@@ -103,3 +103,39 @@ configs:
 
 	return m.Run(ctx, source, k3s.Config(), kServer, goVersion)
 }
+
+// WalArchiveMemory checks the pgBackRest package used in the sidecar for excessive memory retention.
+func (m *E2E) WalArchiveMemory(ctx context.Context, source *dagger.Directory) (string, error) {
+	runner := source.DockerBuild(dagger.DirectoryDockerBuildOpts{
+		Dockerfile: "containers/Dockerfile.sidecar",
+		Target:     "pgbackrestinstaller",
+	}).
+		WithEnvVariable("DEBIAN_FRONTEND", "noninteractive").
+		WithExec([]string{"apt-get", "update"}).
+		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "curl", "openssl", "postgresql-18", "python3"}).
+		WithExec([]string{"openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+			"-subj", "/CN=minio", "-keyout", "/tmp/minio.key", "-out", "/tmp/minio.crt"})
+
+	// Build a pinned MinIO release so the test does not depend on registry access
+	// to a third-party MinIO image.
+	minioBinary := dag.Container().From("golang:1.27.3").
+		WithEnvVariable("CGO_ENABLED", "0").
+		WithExec([]string{"go", "install", "github.com/minio/minio@v0.0.0-20251015172955-9e49d5e7a648"}).
+		File("/go/bin/minio")
+	minio := dag.Container().From("debian:13-slim").
+		WithMountedFile("/usr/local/bin/minio", minioBinary).
+		WithMountedFile("/certs/private.key", runner.File("/tmp/minio.key")).
+		WithMountedFile("/certs/public.crt", runner.File("/tmp/minio.crt")).
+		WithEnvVariable("MINIO_ROOT_USER", "wal-memory").
+		WithEnvVariable("MINIO_ROOT_PASSWORD", "wal-memory-test").
+		WithEnvVariable("MINIO_BROWSER", "off").
+		WithEnvVariable("MINIO_UPDATE", "off").
+		WithExposedPort(9000).
+		WithDefaultArgs([]string{"/usr/local/bin/minio", "server", "--certs-dir", "/certs", "/tmp/wal-memory"}).
+		AsService()
+
+	return runner.WithUser("postgres").WithServiceBinding("minio", minio).
+		WithMountedFile("/wal-memory.py", source.File("test/wal-memory/archive.py")).
+		WithExec([]string{"python3", "/wal-memory.py"}).
+		Stdout(ctx)
+}

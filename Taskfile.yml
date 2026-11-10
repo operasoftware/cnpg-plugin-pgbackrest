@@ -294,6 +294,11 @@ tasks:
         --kubernetes-version v{{ .K3S_IMAGE_VERSION }}-k3s1
         --go-version {{ .GOLANG_IMAGE_VERSION }}
 
+  wal-archive-memory:
+    desc: Check peak memory during asynchronous WAL archiving
+    cmds:
+      - GITHUB_REF= dagger call -m dagger/e2e wal-archive-memory --source .
+
   ci:
     desc: Run the CI pipeline
     deps:
@@ -303,6 +308,7 @@ tasks:
       - lint
       - go-test
       - e2e-ephemeral
+      - wal-archive-memory
 
   publish:
     desc: Build and publish a container image for the plugin

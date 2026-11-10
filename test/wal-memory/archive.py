@@ -1,0 +1,154 @@
+"""Exercise multipart WAL uploads and bound pgBackRest's peak anonymous RSS."""
+
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+import time
+
+
+SEGMENTS = 128
+WORKERS = 8
+# Leave room for active multipart buffers and allocator differences. The old
+# free list alone could retain 8 x 5 MiB of upload buffers per worker.
+MAX_RSS_MIB = 300
+POSTGRES = Path("/usr/lib/postgresql/18/bin")
+PGBACKREST = "/usr/bin/pgbackrest"
+SQL = f"""
+CREATE EXTENSION pgcrypto;
+CREATE UNLOGGED TABLE payload AS
+    SELECT gen_random_bytes(1024) || gen_random_bytes(1024) ||
+           gen_random_bytes(1024) || gen_random_bytes(1024) ||
+           gen_random_bytes(1024) || gen_random_bytes(1024) AS data
+    FROM generate_series(1, 1200);
+CREATE TABLE wal_data (data bytea);
+ALTER TABLE wal_data ALTER COLUMN data SET STORAGE EXTERNAL;
+SELECT pg_switch_wal();
+DO $$
+BEGIN
+    FOR n IN 1..{SEGMENTS} LOOP
+        INSERT INTO wal_data SELECT data FROM payload;
+        TRUNCATE wal_data;
+        PERFORM pg_switch_wal();
+        COMMIT;
+    END LOOP;
+END $$;
+"""
+
+
+def run(args, **kwargs):
+    return subprocess.run(args, check=True, text=True, **kwargs)
+
+
+def postgres(program, *args, **kwargs):
+    return run([str(POSTGRES / program), *args], **kwargs)
+
+
+def prepare_wal(work):
+    data = work / "pg"
+    postgres("initdb", "-D", str(data), "--no-sync", "--locale=C")
+    postgres(
+        "pg_ctl", "-D", str(data), "-l", str(work / "postgres.log"), "-w",
+        "-o", f"-c listen_addresses= -c unix_socket_directories={work} "
+        "-c archive_mode=on -c archive_command=false -c autovacuum=off -c max_wal_size=4GB",
+        "start",
+    )
+    try:
+        postgres("psql", "-h", str(work), "-v", "ON_ERROR_STOP=1", input=SQL)
+    finally:
+        postgres("pg_ctl", "-D", str(data), "-m", "fast", "-w", "stop")
+
+    # The first switch finishes the setup WAL. The next SEGMENTS switches
+    # finish the upload workload. Shutdown may archive an additional segment.
+    status = data / "pg_wal/archive_status"
+    ready = sorted(path for path in status.glob("*.ready") if re.fullmatch(r"[0-9A-F]{24}", path.stem))
+    if len(ready) < SEGMENTS + 1:
+        raise RuntimeError(f"expected setup WAL and {SEGMENTS} workload segments, got {len(ready)} segments")
+    for path in ready[:1] + ready[SEGMENTS + 1:]:
+        path.unlink()
+    return data, {path.stem for path in ready[1:SEGMENTS + 1]}
+
+
+def sample():
+    rss_kib = 0
+    processes = 0
+    for proc in Path("/proc").glob("[0-9]*"):
+        try:
+            if os.readlink(proc / "exe") != PGBACKREST:
+                continue
+            for line in (proc / "status").read_text().splitlines():
+                if line.startswith("RssAnon:"):
+                    rss_kib += int(line.split()[1])
+                    processes += 1
+                    break
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            # Workers can exit between reading their executable and status.
+            continue
+    return rss_kib, processes
+
+
+def archive(work, data, segments):
+    spool = work / "spool"
+    out = spool / "archive/bench/out"
+    out.mkdir(parents=True)
+    env = dict(os.environ, PGBACKREST_REPO1_S3_KEY="wal-memory", PGBACKREST_REPO1_S3_KEY_SECRET="wal-memory-test")
+    repo = [
+        PGBACKREST, "--stanza=bench", "--repo1-type=s3", "--repo1-path=/repo",
+        "--repo1-s3-bucket=wal-memory", "--repo1-s3-endpoint=minio", "--repo1-storage-port=9000",
+        "--repo1-s3-region=us-east-1", "--repo1-s3-uri-style=path", "--no-repo1-storage-verify-tls",
+        "--log-level-file=off",
+    ]
+    args = [*repo, f"--pg1-path={data}", f"--lock-path={work / 'lock'}"]
+    run([*args, "--no-online", "stanza-create"], env=env)
+    with subprocess.Popen([
+        "timeout", "--kill-after=5s", "180s", *args, f"--spool-path={spool}", "--archive-async", "--archive-push-batch-size=4GiB",
+        f"--process-max={WORKERS}", "--buffer-size=1MiB", "--compress-type=zst", "--compress-level=1",
+        "--repo1-storage-upload-chunk-size=5MiB", "archive-push:async", str(data / "pg_wal"),
+    ], env=env) as process:
+        peak_kib, peak_processes = 0, 0
+        while process.poll() is None:
+            rss_kib, processes = sample()
+            peak_kib = max(peak_kib, rss_kib)
+            peak_processes = max(peak_processes, processes)
+            time.sleep(0.05)
+        if process.returncode:
+            raise RuntimeError(f"archive-push exited with status {process.returncode}")
+
+    archived = {path.stem for path in out.glob("*.ok")}
+    if archived != segments:
+        raise RuntimeError(f"archived {len(archived)} of {len(segments)} expected WAL segments")
+    objects = json.loads(run([
+        *repo, "--log-level-console=off", "--recurse", "--output=json", "repo-ls", "archive/bench",
+    ], env=env, capture_output=True).stdout)
+    multipart = sum(
+        name.endswith(".zst") and entry.get("size", 0) > 5 * 1024 * 1024
+        for name, entry in objects.items()
+    )
+    peak_mib = peak_kib / 1024
+    print(f"Archived {len(archived)} WAL segments ({multipart} multipart); "
+          f"peak anonymous RSS {peak_mib:.1f} MiB across up to {peak_processes} pgBackRest processes")
+    if multipart != SEGMENTS or peak_processes < WORKERS + 1:
+        raise RuntimeError("workload did not exercise all multipart uploads and parallel workers")
+    if peak_mib > MAX_RSS_MIB:
+        raise RuntimeError(f"pgBackRest peak anonymous RSS exceeded {MAX_RSS_MIB} MiB")
+
+
+def main():
+    run([PGBACKREST, "version"])
+    run([
+        "curl", "--fail-with-body", "--silent", "--show-error", "--insecure",
+        "--aws-sigv4", "aws:amz:us-east-1:s3", "--user", "wal-memory:wal-memory-test",
+        "-X", "PUT", "-H", f"x-amz-content-sha256: {hashlib.sha256(b'').hexdigest()}",
+        "https://minio:9000/wal-memory",
+    ])
+    with tempfile.TemporaryDirectory(prefix="wal-memory-") as directory:
+        work = Path(directory)
+        data, segments = prepare_wal(work)
+        archive(work, data, segments)
+
+
+if __name__ == "__main__":
+    main()
