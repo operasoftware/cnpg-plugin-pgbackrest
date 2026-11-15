@@ -157,6 +157,12 @@ var _ = Describe("Pgbackrest credentials", func() {
 			AWS: &S3Credentials{},
 		}.ArePopulated()).To(BeTrue())
 	})
+
+	It("can check when Azure credentials are set", func() {
+		Expect(PgbackrestCredentials{
+			Azure: &AzureCredentials{},
+		}.ArePopulated()).To(BeTrue())
+	})
 })
 
 var _ = Describe("Pgbackrest retention", func() {
