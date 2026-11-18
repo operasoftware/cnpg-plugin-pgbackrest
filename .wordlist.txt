@@ -1,8 +1,12 @@
 Azurite
 CloudNativePG
+DNS
 Gi
+IPv
 IfNotPresent
+LSN
 MinIO
+NetworkPolicy
 PITR
 TODO
 TLS
@@ -12,6 +16,9 @@ api
 apiVersion
 apiextensions
 auth
+authorisation
+authorises
+authorising
 backends
 cd
 cloudnative
@@ -55,5 +62,6 @@ serviceaccount
 storageClass
 tfddg
 tgz
+whitespace
 xvzf
 yaml

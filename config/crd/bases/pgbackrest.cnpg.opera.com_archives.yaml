@@ -43,6 +43,25 @@ spec:
                 description: PgbackrestConfiguration is the configuration of all pgBackRest
                   operations
                 properties:
+                  backupStandby:
+                    description: BackupStandby configures taking backups from a standby
+                      instance.
+                    properties:
+                      enabled:
+                        description: |-
+                          Enabled runs the pgBackRest TLS server in the instance sidecars and lets
+                          backups dispatched to a standby reach the primary through it.
+                        type: boolean
+                      serviceName:
+                        description: |-
+                          ServiceName is the name of the Service that points to the primary.
+                          Defaults to `<cluster>-pgbackrest`. The name must be covered by the server
+                          certificate of the cluster: CloudNativePG adds the names of managed services
+                          to the certificates it generates, while with a user-provided serverTLSSecret
+                          the owner must reissue the certificate with that name. The value applies to
+                          every Cluster that refers to the Archive.
+                        type: string
+                    type: object
                   compression:
                     description: |-
                       Compress a WAL file before sending it to the object store. Available

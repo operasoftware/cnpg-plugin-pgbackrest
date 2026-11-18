@@ -145,3 +145,46 @@ var _ = Describe("GetPgbackrestBackupOptions", func() {
 			)
 	})
 })
+
+var _ = Describe("backups from a standby", func() {
+	var command *Command
+	const pgDataDir = "/pg/data"
+
+	BeforeEach(func() {
+		pluginConfig := &pgbackrestApi.PgbackrestConfiguration{
+			Repositories: []pgbackrestApi.PgbackrestRepository{{Bucket: "bucket-name", DestinationPath: "/"}},
+		}
+		backupConfig := cnpgApiV1.BackupPluginConfiguration{Name: metadata.PluginName}
+		command = NewBackupCommand(pluginConfig, &backupConfig, pgDataDir)
+	})
+
+	It("adds the primary to backup and stanza-create, --backup-standby only to backup", func(ctx SpecContext) {
+		command.WithStandbyPrimary("cluster-pgbackrest")
+
+		backupOptions, err := command.GetPgbackrestBackupOptions(ctx, "name", "stanza")
+		Expect(err).ToNot(HaveOccurred())
+		stanzaOptions, err := command.getStanzaCreateOptions(ctx, "stanza")
+		Expect(err).ToNot(HaveOccurred())
+
+		for _, options := range [][]string{backupOptions, stanzaOptions} {
+			joined := strings.Join(options, " ")
+			Expect(joined).To(ContainSubstring("--pg2-host cluster-pgbackrest --pg2-host-type tls --pg2-host-port 8432"))
+			Expect(joined).To(ContainSubstring("--pg2-path /pg/data --pg2-user postgres"))
+		}
+		Expect(backupOptions).To(ContainElement("--backup-standby=y"))
+		Expect(stanzaOptions).ToNot(ContainElement("--backup-standby=y"))
+	})
+
+	It("adds nothing without a standby primary", func(ctx SpecContext) {
+		backupOptions, err := command.GetPgbackrestBackupOptions(ctx, "name", "stanza")
+		Expect(err).ToNot(HaveOccurred())
+		stanzaOptions, err := command.getStanzaCreateOptions(ctx, "stanza")
+		Expect(err).ToNot(HaveOccurred())
+
+		for _, options := range [][]string{backupOptions, stanzaOptions} {
+			joined := strings.Join(options, " ")
+			Expect(joined).ToNot(ContainSubstring("--pg2-"))
+			Expect(joined).ToNot(ContainSubstring("--backup-standby"))
+		}
+	})
+})
