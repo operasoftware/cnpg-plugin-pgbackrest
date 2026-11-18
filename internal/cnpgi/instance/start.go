@@ -34,6 +34,7 @@ import (
 // CNPGI is the implementation of the PostgreSQL sidecar
 type CNPGI struct {
 	Client         client.Client
+	APIReader      client.Reader
 	PGDataPath     string
 	PGWALPath      string
 	SpoolDirectory string
@@ -55,6 +56,7 @@ func (c *CNPGI) Start(ctx context.Context) error {
 		})
 		backup.RegisterBackupServer(server, BackupServiceImplementation{
 			Client:       c.Client,
+			APIReader:    c.APIReader,
 			InstanceName: c.InstanceName,
 			PGDataPath:   c.PGDataPath,
 		})

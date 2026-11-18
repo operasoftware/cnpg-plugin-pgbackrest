@@ -40,6 +40,9 @@ type Command struct {
 	configuration   *pgbackrestApi.PgbackrestConfiguration
 	backupConfig    *cnpgApiV1.BackupPluginConfiguration
 	pgDataDirectory string
+	// standbyPrimaryHost is the host of the primary's pgbackrest TLS server;
+	// empty means the backup runs on the primary.
+	standbyPrimaryHost string
 }
 
 // NewBackupCommand creates a new pgbackrest backup command
@@ -53,6 +56,13 @@ func NewBackupCommand(
 		backupConfig:    backupConfig,
 		pgDataDirectory: pgDataDirectory,
 	}
+}
+
+// WithStandbyPrimary makes the command reach the primary at the given host,
+// which is required to back up from a standby
+func (b *Command) WithStandbyPrimary(host string) *Command {
+	b.standbyPrimaryHost = host
+	return b
 }
 
 // GetDataConfiguration gets the configuration in the `Data` object of the pgbackrest configuration
@@ -146,6 +156,11 @@ func (b *Command) GetPgbackrestBackupOptions(
 		return nil, err
 	}
 
+	if b.standbyPrimaryHost != "" {
+		options = pgbackrestCommand.AppendStandbyPrimaryOptions(options, b.standbyPrimaryHost, b.pgDataDirectory)
+		options = append(options, "--backup-standby=y")
+	}
+
 	options, err = pgbackrestCommand.AppendLogOptionsFromConfiguration(ctx, options, b.configuration)
 	if err != nil {
 		return nil, err
@@ -197,6 +212,10 @@ func (b *Command) getStanzaCreateOptions(
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	if b.standbyPrimaryHost != "" {
+		options = pgbackrestCommand.AppendStandbyPrimaryOptions(options, b.standbyPrimaryHost, b.pgDataDirectory)
 	}
 
 	options, err = pgbackrestCommand.AppendLogOptionsFromConfiguration(

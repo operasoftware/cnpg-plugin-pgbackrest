@@ -78,6 +78,7 @@ func Start(ctx context.Context) error {
 
 	if err := mgr.Add(&CNPGI{
 		Client:       customCacheClient,
+		APIReader:    mgr.GetAPIReader(),
 		InstanceName: podName,
 		// TODO: improve
 		PGDataPath:     viper.GetString("pgdata"),
@@ -98,6 +99,17 @@ func Start(ctx context.Context) error {
 		CurrentPodName: podName,
 	}); err != nil {
 		setupLog.Error(err, "unable to create catalog maintenance runnable")
+		return err
+	}
+
+	if err := mgr.Add(&StandbyServerRunnable{
+		Client: mgr.GetAPIReader(),
+		ClusterKey: types.NamespacedName{
+			Namespace: namespace,
+			Name:      clusterName,
+		},
+	}); err != nil {
+		setupLog.Error(err, "unable to create standby server runnable")
 		return err
 	}
 

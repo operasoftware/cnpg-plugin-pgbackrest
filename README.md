@@ -15,6 +15,7 @@ plugin for [CloudNativePG](https://cloudnative-pg.io/).
 - [Usage](#usage)
   - [WAL Archiving](#wal-archiving)
   - [Backup](#backup)
+  - [Backups from a standby](#backups-from-a-standby)
   - [Restore](#restore)
   - [Replica clusters](#replica-clusters)
 
@@ -25,7 +26,7 @@ cluster using the [pgbackrest](https://pgbackrest.org) tool suite.
 
 The features provided by this plugin are:
 
-- Data Directory Backup
+- Data Directory Backup, optionally from a standby
 - Data Directory Restore
 - WAL Archiving
 - WAL Restoring
@@ -48,7 +49,6 @@ this implementation:
 Known missing features:
 
 - support for other object storage solutions (GCS, Azure),
-- backups from replicas,
 - proper support for private certificate authorities.
 
 ## Prerequisites
@@ -286,14 +286,143 @@ spec:
       type: full
 ```
 
-> [!IMPORTANT]
-> Currently only backups from primary are supported. Trying to run backup from a replica
-> will fail.
+> [!NOTE]
+> Backups can also run on a standby. See [Backups from a Standby](#backups-from-a-standby).
 
 > [!TIP]
 > All keys defined in the `parameters` section are passed to the pgBackRest as flags.
 > This feature makes it possible to configure some additional options, most notably
 > backup type, for a single backup instead of globally.
+
+### Backups from a Standby
+
+Backups from a standby are disabled by default. With `backupStandby` enabled, a
+backup dispatched to a standby copies the data files from that standby and takes
+the load off the primary. pgBackRest still starts and stops the backup on the
+primary, and copies a few non-replicated files from it.
+
+First, enable the feature in the `Archive` (other fields as in the example above):
+
+```yaml
+apiVersion: pgbackrest.cnpg.opera.com/v1
+kind: Archive
+metadata:
+  name: minio-store
+spec:
+  configuration:
+    repositories:
+      # ...
+    backupStandby:
+      enabled: true
+```
+
+Second, expose the primary to the standby with a CloudNativePG
+[managed service](https://cloudnative-pg.io/documentation/current/service_management/)
+on port 8432. By default the plugin connects to `<cluster>-pgbackrest`;
+`backupStandby.serviceName` in the `Archive` overrides the name and applies to
+every `Cluster` that refers to the `Archive`:
+
+```yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: cluster-example
+spec:
+  managed:
+    services:
+      additional:
+      - selectorType: rw
+        serviceTemplate:
+          metadata:
+            name: cluster-example-pgbackrest
+          spec:
+            ports:
+            - name: pgbackrest
+              port: 8432
+              targetPort: 8432
+  # ...
+```
+
+CloudNativePG creates the Service and adds its names to the server
+certificate. No pod restart is needed. A Service you create yourself that
+selects the primary also works, if you add its DNS names to
+`spec.certificates.serverAltDNSNames` of the `Cluster`.
+
+CloudNativePG adds names only to the certificates it generates. If you provide
+the server certificate with `spec.certificates.serverTLSSecret`, reissue it
+with the name of the Service. A replication certificate with a custom common
+name is supported: the server authorises the common name of the replication
+certificate of the cluster.
+
+Enabling or disabling the feature does not restart the instance pods. Each
+sidecar checks the `Cluster` and the `Archive` roughly every five minutes. After
+the feature is enabled, a backup on a standby proceeds as soon as the server of
+the primary is reachable; the standby waits up to 90 seconds for it, then the
+backup fails and can be retried.
+
+A backup runs on a standby when its `target` is `prefer-standby`, which is the
+CloudNativePG default. The same applies to `spec.backup.target` of the
+`Cluster` and to a `ScheduledBackup`:
+
+```yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Backup
+metadata:
+  name: backup-standby-example
+spec:
+  method: plugin
+  cluster:
+    name: cluster-example
+  target: prefer-standby
+  pluginConfiguration:
+    name: pgbackrest.cnpg.opera.com
+```
+
+If the backup is dispatched to the primary, a normal local backup is taken. If
+the feature is disabled and the backup is dispatched to a standby, the backup
+fails with an error that tells you to enable `backupStandby` or use
+`target: primary`.
+
+#### How it works
+
+- While the feature is enabled, the sidecar of every instance runs
+  `pgbackrest server`, the pgBackRest TLS server, on port 8432. Every instance
+  needs it because the primary can change.
+- The sidecar of the standby runs the backup and uses the primary as a second
+  pgBackRest host. It reaches the primary through the Service above.
+- pgBackRest starts and stops the backup on the primary and waits until the
+  standby has replayed the start `LSN`. Then it copies the data files from the
+  standby.
+- The CloudNativePG instance certificates are reused. The server presents the
+  server certificate of the cluster. The client presents the streaming
+  replication client certificate. The plugin creates no extra secrets or
+  certificates.
+
+#### Limitations
+
+- The backup fails if the standby makes no replay progress for the pgBackRest
+  `archive-timeout` (60 seconds by default) before it reaches the backup start
+  `LSN`. It is not retried on the primary.
+- CloudNativePG, not the plugin, chooses the standby that runs the backup.
+- Port 8432 must be reachable between the instance pods.
+- The pgBackRest TLS server listens on IPv4 only (`0.0.0.0`). Clusters whose pod
+  network is IPv6-only are not supported.
+- The stanza name must not be `*`, contain `,` or have leading or trailing
+  whitespace: pgBackRest cannot express such a name in its authorisation rule.
+  The server does not run with such a stanza, and a backup dispatched to a
+  standby fails with the reason.
+- The common name of the replication certificate must not contain `=`, for the
+  same reason. The server does not start with such a certificate; a server that
+  is already running keeps authorising the previous common name.
+
+> [!WARNING]
+> Whoever holds the streaming replication client certificate of the cluster and
+> can reach port 8432 of an instance can run SQL as the `postgres` superuser and
+> read and write files in the data directory through the pgBackRest protocol.
+> That is more than replication access. If the client CA is shared between
+> clusters, a replication certificate of another cluster with the same common
+> name is accepted as well. This is why the feature is opt-in. Restrict access
+> to port 8432 to the instance pods, for example with a NetworkPolicy.
 
 ### Restoring a Cluster
 

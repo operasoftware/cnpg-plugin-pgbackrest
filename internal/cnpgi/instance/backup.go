@@ -19,7 +19,10 @@ package instance
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
+	"strconv"
 	"time"
 
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/postgres"
@@ -34,14 +37,22 @@ import (
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/cnpgi/operator/config"
 	pgbackrestBackup "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/backup"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/catalog"
+	pgbackrestCommand "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/command"
 	pgbackrestCredentials "github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/credentials"
 	"github.com/operasoftware/cnpg-plugin-pgbackrest/internal/pgbackrest/utils"
+)
+
+const (
+	standbyServerReachableTimeout  = 90 * time.Second
+	standbyServerReachableInterval = 2 * time.Second
+	standbyServerDialTimeout       = 3 * time.Second
 )
 
 // BackupServiceImplementation is the implementation
 // of the Backup CNPG capability
 type BackupServiceImplementation struct {
 	Client       client.Client
+	APIReader    client.Reader
 	InstanceName string
 	PGDataPath   string
 	backup.UnimplementedBackupServer
@@ -85,7 +96,8 @@ func (b BackupServiceImplementation) Backup(
 	}
 
 	var archive pgbackrestv1.Archive
-	if err := b.Client.Get(ctx, configuration.GetArchiveObjectKey(), &archive); err != nil {
+	// Uncached: right after backupStandby is enabled the cache can still hold the disabled Archive.
+	if err := b.APIReader.Get(ctx, configuration.GetArchiveObjectKey(), &archive); err != nil {
 		contextLogger.Error(err, "while getting archive", "key", configuration.GetRecoveryArchiveObjectKey())
 		return nil, err
 	}
@@ -100,6 +112,30 @@ func (b BackupServiceImplementation) Backup(
 		backupConfig.Spec.PluginConfiguration,
 		b.PGDataPath,
 	)
+
+	currentPrimary := configuration.Cluster.Status.CurrentPrimary
+	onStandby, err := checkBackupTarget(
+		archive.Spec.Configuration.IsBackupStandbyEnabled(), currentPrimary, b.InstanceName)
+	if err != nil {
+		contextLogger.Error(err, "while checking the backup target")
+		return nil, err
+	}
+	if onStandby {
+		if err := pgbackrestCommand.ValidateStandbyStanza(configuration.Stanza); err != nil {
+			contextLogger.Error(err, "while checking the stanza for a backup from a standby")
+			return nil, err
+		}
+		host := archive.Spec.Configuration.BackupStandby.GetServiceName(configuration.Cluster.Name)
+		address := net.JoinHostPort(host, strconv.Itoa(pgbackrestCommand.StandbyServerPort))
+		if err := waitForStandbyServer(
+			ctx, address, standbyServerReachableTimeout, standbyServerReachableInterval,
+		); err != nil {
+			contextLogger.Error(err, "while waiting for the pgBackRest TLS server of the primary")
+			return nil, err
+		}
+		contextLogger.Info("Taking backup from standby", "host", host)
+		backupCmd = backupCmd.WithStandbyPrimary(host)
+	}
 
 	// We need to connect to PostgreSQL and to do that we need
 	// PGHOST (and the like) to be available
@@ -162,4 +198,64 @@ func (b BackupServiceImplementation) Backup(
 		Metadata: newBackupResultMetadata(
 			configuration.Cluster.UID, configuration.Stanza, &archive.Spec.Configuration).toMap(),
 	}, nil
+}
+
+// checkBackupTarget reports whether the backup runs on a standby and rejects the
+// combinations that cannot work
+func checkBackupTarget(backupStandbyEnabled bool, currentPrimary, instanceName string) (bool, error) {
+	if currentPrimary == instanceName {
+		return false, nil
+	}
+	if !backupStandbyEnabled {
+		if currentPrimary == "" {
+			return false, nil
+		}
+		return false, fmt.Errorf(
+			"the backup was dispatched to the standby %q but backupStandby is not enabled in the Archive: "+
+				"enable it or set the backup target to primary", instanceName)
+	}
+	if currentPrimary == "" {
+		return false, errors.New("cluster has no current primary")
+	}
+	return true, nil
+}
+
+// waitForStandbyServer waits until the TLS server of the primary accepts connections:
+// a backup can be dispatched before the primary's sidecar has started it.
+// This only checks reachability, not TLS or authorisation.
+func waitForStandbyServer(ctx context.Context, address string, timeout, interval time.Duration) error {
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	dialer := net.Dialer{Timeout: standbyServerDialTimeout}
+	var lastErr error
+	for {
+		conn, err := dialer.DialContext(waitCtx, "tcp", address)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		// A dial cut short by the deadline says nothing about the server.
+		if waitCtx.Err() == nil {
+			lastErr = err
+		}
+
+		select {
+		case <-waitCtx.Done():
+		case <-time.After(interval):
+			continue
+		}
+
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if lastErr == nil {
+			lastErr = fmt.Errorf("no connection attempt completed within %s", timeout)
+		}
+		return fmt.Errorf(
+			"the pgBackRest TLS server of the primary is not reachable at %s: %w. "+
+				"The Service must select the primary and expose port 8432; "+
+				"after enabling backupStandby the primary may still be waiting for its next configuration refresh",
+			address, lastErr)
+	}
 }

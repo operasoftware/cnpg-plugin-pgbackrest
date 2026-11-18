@@ -406,6 +406,45 @@ type PgbackrestConfiguration struct {
 	// +kubebuilder:default=OnFirstArchive
 	// +optional
 	CreateStanza StanzaCreatePolicy `json:"createStanza,omitempty"`
+
+	// BackupStandby configures taking backups from a standby instance.
+	// +optional
+	BackupStandby *BackupStandbyConfiguration `json:"backupStandby,omitempty"`
+}
+
+// BackupStandbyConfiguration configures backups taken from a standby. pgBackRest
+// still needs the primary, which it reaches through a TLS server running in the
+// primary's sidecar. The Service in front of the primary is not created by the
+// plugin: declare it as a CloudNativePG managed service (selectorType rw, port 8432)
+// so that CloudNativePG also adds its name to the server certificate.
+type BackupStandbyConfiguration struct {
+	// Enabled runs the pgBackRest TLS server in the instance sidecars and lets
+	// backups dispatched to a standby reach the primary through it.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// ServiceName is the name of the Service that points to the primary.
+	// Defaults to `<cluster>-pgbackrest`. The name must be covered by the server
+	// certificate of the cluster: CloudNativePG adds the names of managed services
+	// to the certificates it generates, while with a user-provided serverTLSSecret
+	// the owner must reissue the certificate with that name. The value applies to
+	// every Cluster that refers to the Archive.
+	// +optional
+	ServiceName string `json:"serviceName,omitempty"`
+}
+
+// IsBackupStandbyEnabled reports whether backups from a standby are enabled.
+func (c *PgbackrestConfiguration) IsBackupStandbyEnabled() bool {
+	return c.BackupStandby != nil && c.BackupStandby.Enabled
+}
+
+// GetServiceName returns the name of the Service pointing to the primary,
+// defaulting to `<clusterName>-pgbackrest` when unset.
+func (s *BackupStandbyConfiguration) GetServiceName(clusterName string) string {
+	if s == nil || s.ServiceName == "" {
+		return clusterName + "-pgbackrest"
+	}
+	return s.ServiceName
 }
 
 // GetCreateStanzaPolicy returns the configured stanza creation policy, defaulting to
